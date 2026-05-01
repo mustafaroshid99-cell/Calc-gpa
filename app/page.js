@@ -1,9 +1,9 @@
 "use client";
+import { useEffect, useMemo, useState } from "react";
 
-import { useState, useEffect } from "react";
-
-export default function Page() {
+export default function Home() {
   const [page, setPage] = useState("home");
+  const [anim, setAnim] = useState(false);
 
   const [examName, setExamName] = useState("");
   const [subjectCount, setSubjectCount] = useState("");
@@ -17,16 +17,46 @@ export default function Page() {
   const [viewStudent, setViewStudent] = useState(null);
   const [searchRoll, setSearchRoll] = useState("");
 
-  const go = (p) => setPage(p);
+  // Load
+  useEffect(() => {
+    try {
+      const data = localStorage.getItem("students");
+      if (data) setStudents(JSON.parse(data));
+    } catch (e) {}
+  }, []);
 
-  // INIT SUBJECTS
-  const start = () => {
-    if (!examName || !subjectCount) return;
-    setMarks(Array(Number(subjectCount)).fill(""));
-    setPage("app");
+  // Save
+  useEffect(() => {
+    localStorage.setItem("students", JSON.stringify(students));
+  }, [students]);
+
+  // UI ripple
+  const ripple = (e) => {
+    const btn = e.currentTarget;
+    const circle = document.createElement("span");
+    const size = Math.max(btn.clientWidth, btn.clientHeight);
+    const rect = btn.getBoundingClientRect();
+
+    circle.style.width = circle.style.height = size + "px";
+    circle.style.left = e.clientX - rect.left - size / 2 + "px";
+    circle.style.top = e.clientY - rect.top - size / 2 + "px";
+    circle.className = "ripple";
+
+    const old = btn.querySelector(".ripple");
+    if (old) old.remove();
+    btn.appendChild(circle);
   };
 
-  // GPA SYSTEM
+  // navigation
+  const go = (p) => {
+    setAnim(true);
+    setTimeout(() => {
+      setPage(p);
+      setAnim(false);
+    }, 200);
+  };
+
+  // grading
   const gp = (m) => {
     if (m >= 80) return 5;
     if (m >= 70) return 4;
@@ -47,248 +77,210 @@ export default function Page() {
     return "F";
   };
 
-  // ADD STUDENT
+  const start = () => {
+    if (!examName || !subjectCount) return alert("Fill all fields");
+    setMarks(Array(Number(subjectCount)).fill(""));
+    go("app");
+  };
+
+  const updateMark = (i, v) => {
+    if (v === "") return;
+    const num = Number(v);
+    if (num < 0 || num > 100) return;
+
+    const copy = [...marks];
+    copy[i] = v;
+    setMarks(copy);
+  };
+
   const addStudent = () => {
-    if (!name || !roll) return;
+    const nums = marks.map(Number);
 
-    if (students.some((s) => s.roll === roll)) {
-      alert("Student already exists");
-      return;
-    }
+    if (!name || !roll || nums.some((n) => isNaN(n))) return;
 
-    let total = 0;
-    let fail = false;
+    const total = nums.reduce((a, b) => a + b, 0);
+    const fail = nums.some((m) => m < 33);
+    const gpa = fail ? 0 : nums.reduce((a, b) => a + gp(b), 0) / nums.length;
 
-    const gpas = marks.map((m) => {
-      const v = Number(m);
-      if (v < 33) fail = true;
-      total += v;
-      return gp(v);
-    });
-
-    const gpa = fail ? 0 : gpas.reduce((a, b) => a + b, 0) / gpas.length;
-
-    const student = {
+    const obj = {
       name,
-      roll,
-      marks,
+      roll: String(roll),
       total,
-      gpa: Number(gpa.toFixed(2)),
+      gpa: +gpa.toFixed(2),
       grade: lg(gpa),
       status: fail ? "FAIL" : "PASS",
     };
 
-    setStudents([...students, student]);
+    const exists = students.find((s) => s.roll === obj.roll);
 
+    if (exists) {
+      const ok = confirm("Student exists. Update marks?");
+      if (!ok) return;
+
+      setStudents(students.map((s) => (s.roll === obj.roll ? obj : s)));
+    } else {
+      setStudents([...students, obj]);
+    }
+
+    setViewStudent(obj);
     setName("");
     setRoll("");
     setMarks(Array(Number(subjectCount)).fill(""));
   };
 
-  // SEARCH
   const search = () => {
-    setViewStudent(students.find((s) => s.roll === searchRoll) || null);
+    const s = students.find((x) => x.roll === String(searchRoll));
+    setViewStudent(s || null);
   };
 
-  // MERIT SYSTEM (SAFE + STABLE)
-  const ranked = [...students]
-    .sort((a, b) => b.gpa - a.gpa || b.total - a.total || a.roll - b.roll)
-    .map((s, i) => ({ ...s, merit: i + 1 }));
-
-  // SUMMARY
-  const pass = students.filter((s) => s.status === "PASS").length;
-  const fail = students.length - pass;
-
-  // PDF EXPORT (simple safe version)
-  const exportPDF = () => {
-    const text = ranked
-      .map(
-        (s) =>
-          `${s.name} | Roll ${s.roll} | Merit ${s.merit} | GPA ${s.gpa} | ${s.grade}`
+  // MERIT LOGIC (stable)
+  const ranked = useMemo(() => {
+    return [...students]
+      .sort((a, b) =>
+        b.gpa - a.gpa || b.total - a.total || Number(a.roll) - Number(b.roll)
       )
-      .join("\n");
+      .map((s, i) => ({ ...s, merit: i + 1 }));
+  }, [students]);
 
-    const blob = new Blob([text], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
+  const byRoll = useMemo(() => {
+    return [...students].sort((a, b) => Number(a.roll) - Number(b.roll));
+  }, [students]);
 
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "merit-list.txt";
-    a.click();
-  };
+  const passCount = students.filter((s) => s.status === "PASS").length;
+  const failCount = students.filter((s) => s.status === "FAIL").length;
 
-  const styles = {
-    bg: {
-      minHeight: "100vh",
-      padding: 20,
-      background: "linear-gradient(135deg,#0f172a,#020617)",
-      color: "white",
-      fontFamily: "Arial",
-    },
-    card: {
-      background: "rgba(255,255,255,0.08)",
-      padding: 15,
-      borderRadius: 18,
-      backdropFilter: "blur(12px)",
-      border: "1px solid rgba(255,255,255,0.1)",
-      marginBottom: 15,
-      transition: "0.3s",
-    },
-    btn: {
-      padding: 10,
-      borderRadius: 12,
-      border: "none",
-      background: "linear-gradient(90deg,#6366f1,#22c55e)",
-      color: "white",
-      cursor: "pointer",
-      marginTop: 8,
-    },
-    input: {
-      width: "100%",
-      padding: 10,
-      marginTop: 8,
-      borderRadius: 10,
-      border: "none",
-      background: "rgba(255,255,255,0.1)",
-      color: "white",
-      outline: "none",
-    },
-    nav: {
-      display: "flex",
-      justifyContent: "space-around",
-      marginBottom: 20,
-      fontSize: 18,
-    },
-  };
+  const gradeCount = (g) => students.filter((s) => s.grade === g).length;
+
+  const printPDF = () => window.print();
 
   return (
     <div style={styles.bg}>
+
+      <style>{`
+        .ripple{position:absolute;border-radius:50%;transform:scale(0);animation:ripple .6s linear;background:rgba(255,255,255,.4)}
+        @keyframes ripple{to{transform:scale(4);opacity:0}}
+
+        .fade{animation:fade .25s ease}
+        @keyframes fade{from{opacity:.4;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+
+        input{width:100%;margin-top:8px;padding:10px;border-radius:12px;border:none;background:rgba(255,255,255,0.1);color:white;outline:none}
+      `}</style>
+
       {/* NAV */}
       <div style={styles.nav}>
-        <button onClick={() => go("home")}>🏠</button>
-        <button onClick={() => go("setup")}>⚙️</button>
-        <button onClick={() => go("app")}>📘</button>
-        <button onClick={() => go("summary")}>📊</button>
-        <button onClick={() => go("merit")}>🏆</button>
+        {["🏠","⚙️","📘","📊","🏆"].map((ic,i)=>(
+          <button key={i} type="button" style={styles.navBtn} onClick={(e)=>{ripple(e);go(["home","setup","app","summary","merit"][i]);}}>{ic}</button>
+        ))}
       </div>
 
-      {/* HOME */}
-      {page === "home" && (
-        <div style={styles.card}>
-          <h1>GPA GOD MODE 3.2</h1>
-          <button style={styles.btn} onClick={() => go("setup")}>
-            Create Project
-          </button>
-        </div>
-      )}
+      <div className={anim ? "fade" : ""}>
 
-      {/* SETUP */}
-      {page === "setup" && (
-        <div style={styles.card}>
-          <h3>Setup</h3>
-          <input
-            style={styles.input}
-            placeholder="Exam Name"
-            value={examName}
-            onChange={(e) => setExamName(e.target.value)}
-          />
-          <input
-            style={styles.input}
-            placeholder="Subjects"
-            value={subjectCount}
-            onChange={(e) => setSubjectCount(e.target.value)}
-          />
-          <button style={styles.btn} onClick={start}>
-            Start
-          </button>
-        </div>
-      )}
+        {/* HOME */}
+        {page === "home" && (
+          <div style={styles.center}>
+            <h1 style={styles.title}>GPA GOD MODE 3.0</h1>
+            <div style={styles.cardBtn} onClick={(e)=>{ripple(e);go("setup");}}>➕ Create Project</div>
+            <div style={styles.cardBtn} onClick={(e)=>{ripple(e);go("app");}}>📂 Continue</div>
+          </div>
+        )}
 
-      {/* APP */}
-      {page === "app" && (
-        <div style={styles.card}>
-          <h3>{examName}</h3>
+        {/* SETUP */}
+        {page === "setup" && (
+          <div style={styles.card}>
+            <h2>Setup</h2>
+            <input placeholder="Exam Name" value={examName} onChange={(e)=>setExamName(e.target.value)} />
+            <input placeholder="Subjects" value={subjectCount} onChange={(e)=>setSubjectCount(e.target.value)} />
+            <button type="button" style={styles.primary} onClick={(e)=>{ripple(e);start();}}>Start</button>
+          </div>
+        )}
 
-          <input
-            style={styles.input}
-            placeholder="Name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-          />
-          <input
-            style={styles.input}
-            placeholder="Roll"
-            value={roll}
-            onChange={(e) => setRoll(e.target.value)}
-          />
+        {/* APP */}
+        {page === "app" && (
+          <div style={styles.card}>
+            <h2>{examName}</h2>
 
-          {marks.map((m, i) => (
-            <input
-              key={i}
-              style={styles.input}
-              type="number"
-              placeholder={`Subject ${i + 1}`}
-              value={m}
-              onChange={(e) => {
-                const c = [...marks];
-                c[i] = e.target.value;
-                setMarks(c);
-              }}
-            />
-          ))}
+            <input placeholder="Name" value={name} onChange={(e)=>setName(e.target.value)} />
+            <input placeholder="Roll" value={roll} onChange={(e)=>setRoll(e.target.value)} />
 
-          <button style={styles.btn} onClick={addStudent}>
-            Add Student
-          </button>
+            {marks.map((m,i)=>(
+              <input key={i} type="number" value={m} placeholder={`Sub ${i+1}`} onChange={(e)=>updateMark(i,e.target.value)} />
+            ))}
 
-          <input
-            style={styles.input}
-            placeholder="Search Roll"
-            value={searchRoll}
-            onChange={(e) => setSearchRoll(e.target.value)}
-          />
-          <button style={styles.btn} onClick={search}>
-            Search
-          </button>
+            <button type="button" style={styles.primary} onClick={(e)=>{ripple(e);addStudent();}}>Add Student</button>
 
-          {viewStudent && (
-            <div style={styles.card}>
-              <h3>{viewStudent.name}</h3>
-              <p>Roll: {viewStudent.roll}</p>
-              <p>Total: {viewStudent.total}</p>
-              <p>GPA: {viewStudent.gpa}</p>
-              <p>{viewStudent.grade} - {viewStudent.status}</p>
+            <input placeholder="Search Roll" value={searchRoll} onChange={(e)=>setSearchRoll(e.target.value)} />
+            <button type="button" style={styles.secondary} onClick={(e)=>{ripple(e);search();}}>Search</button>
+
+            {viewStudent && (
+              <div style={styles.result}>
+                <h3>{viewStudent.name}</h3>
+                <p>Roll: {viewStudent.roll}</p>
+                <p>Total: {viewStudent.total}</p>
+                <p>GPA: {viewStudent.gpa}</p>
+                <p>{viewStudent.grade} ({viewStudent.status})</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* SUMMARY */}
+        {page === "summary" && (
+          <div style={styles.card}>
+            <h2>Summary</h2>
+            <p>PASS: {passCount} | FAIL: {failCount}</p>
+            <p>A+: {gradeCount("A+")} | A: {gradeCount("A")} | A-: {gradeCount("A-")}</p>
+          </div>
+        )}
+
+        {/* MERIT */}
+        {page === "merit" && (
+          <div style={styles.card}>
+            <h2>Merit Table</h2>
+
+            <button type="button" style={styles.primary} onClick={printPDF}>Export PDF</button>
+
+            <div style={styles.tableHead}>
+              <span>Name</span><span>Roll</span><span>Merit</span><span>Total</span><span>GPA</span><span>LG</span>
             </div>
-          )}
-        </div>
-      )}
 
-      {/* SUMMARY */}
-      {page === "summary" && (
-        <div style={styles.card}>
-          <h3>Summary</h3>
-          <p>Total: {students.length}</p>
-          <p>Pass: {pass}</p>
-          <p>Fail: {fail}</p>
-        </div>
-      )}
+            {byRoll.map((s) => {
+              const m = ranked.find((r) => r.roll === s.roll)?.merit;
+              return (
+                <div key={s.roll} style={styles.tableRow}>
+                  <span>{s.name}</span>
+                  <span>{s.roll}</span>
+                  <span>{m}</span>
+                  <span>{s.total}</span>
+                  <span>{s.gpa}</span>
+                  <span>{s.grade}</span>
+                </div>
+              );
+            })}
 
-      {/* MERIT */}
-      {page === "merit" && (
-        <div style={styles.card}>
-          <h3>Merit List</h3>
+          </div>
+        )}
 
-          <button style={styles.btn} onClick={exportPDF}>
-            Export Merit File
-          </button>
-
-          {ranked.map((s) => (
-            <div key={s.roll}>
-              {s.name} (Roll {s.roll}) → #{s.merit} | GPA {s.gpa} | {s.grade}
-            </div>
-          ))}
-        </div>
-      )}
+      </div>
     </div>
   );
 }
+
+const styles = {
+  bg:{minHeight:"100vh",padding:20,background:"radial-gradient(circle at top,#0f172a,#020617)",color:"white"},
+  center:{textAlign:"center"},
+  title:{fontSize:36,fontWeight:"bold"},
+
+  card:{padding:20,borderRadius:24,background:"rgba(255,255,255,0.08)",backdropFilter:"blur(20px)"},
+  cardBtn:{margin:"12px auto",padding:18,maxWidth:320,borderRadius:22,background:"rgba(255,255,255,0.1)",cursor:"pointer"},
+
+  primary:{marginTop:10,padding:12,borderRadius:14,border:"none",background:"linear-gradient(135deg,#6366f1,#3b82f6)",color:"white"},
+  secondary:{marginTop:10,padding:12,borderRadius:14,border:"1px solid #94a3b8",background:"transparent",color:"white"},
+
+  result:{marginTop:12,padding:14,borderRadius:14,background:"rgba(59,130,246,0.2)"},
+
+  nav:{position:"fixed",bottom:18,left:"50%",transform:"translateX(-50%)",display:"flex",gap:10},
+  navBtn:{padding:12,borderRadius:14,border:"none",background:"rgba(255,255,255,0.1)",color:"white",position:"relative",overflow:"hidden"},
+
+  tableHead:{display:"grid",gridTemplateColumns:"repeat(6,1fr)",marginTop:10,fontWeight:"bold"},
+  tableRow:{display:"grid",gridTemplateColumns:"repeat(6,1fr)",marginTop:6,padding:8,borderRadius:10,background:"rgba(255,255,255,0.08)"}
+};
