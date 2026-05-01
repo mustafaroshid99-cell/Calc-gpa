@@ -4,30 +4,54 @@ import { useEffect, useState } from "react";
 
 export default function Home() { const [page, setPage] = useState("home"); const [anim, setAnim] = useState(false); const [dark, setDark] = useState(true);
 
-const [examName, setExamName] = useState(""); const [subjectCount, setSubjectCount] = useState(""); const [students, setStudents] = useState([]);
+const [projects, setProjects] = useState([]); const [activeProjectIndex, setActiveProjectIndex] = useState(null);
 
-const [name, setName] = useState(""); const [roll, setRoll] = useState(""); const [marks, setMarks] = useState([]); const [viewStudent, setViewStudent] = useState(null); const [searchRoll, setSearchRoll] = useState("");
+const [examName, setExamName] = useState(""); const [subjectCount, setSubjectCount] = useState("");
+
+const [name, setName] = useState(""); const [roll, setRoll] = useState(""); const [marks, setMarks] = useState([]);
+
+const [viewStudent, setViewStudent] = useState(null); const [searchRoll, setSearchRoll] = useState("");
 
 const [toast, setToast] = useState("");
 
-useEffect(() => { const s = localStorage.getItem("students"); if (s) setStudents(JSON.parse(s)); }, []);
+useEffect(() => { const p = localStorage.getItem("projects"); if (p) setProjects(JSON.parse(p)); }, []);
 
-useEffect(() => { localStorage.setItem("students", JSON.stringify(students)); }, [students]);
+useEffect(() => { localStorage.setItem("projects", JSON.stringify(projects)); }, [projects]);
 
 const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(""), 2000); };
 
-const go = (p) => { setAnim(true); setTimeout(() => { setPage(p); setAnim(false); }, 220); };
+const go = (p) => { setAnim(true); setTimeout(() => { setPage(p); setAnim(false); }, 180); };
 
 const gp = (m) => (m >= 80 ? 5 : m >= 70 ? 4 : m >= 60 ? 3.5 : m >= 50 ? 3 : m >= 40 ? 2 : m >= 33 ? 1 : 0); const grade = (g) => (g === 5 ? "A+" : g >= 4 ? "A" : g >= 3.5 ? "A-" : g >= 3 ? "B" : g >= 2 ? "C" : g >= 1 ? "D" : "F");
 
-const start = () => { if (!examName || !subjectCount) return showToast("Fill setup"); setMarks(Array(Number(subjectCount)).fill("")); go("app"); };
+const createProject = () => { if (!examName || !subjectCount) return showToast("Fill all fields");
 
-const updateMark = (i, v) => { if (v === "") return; if (Number(v) > 100 || Number(v) < 0) return showToast("Marks must be 0-100"); const c = [...marks]; c[i] = v; setMarks(c); };
+const newProject = {
+  id: Date.now(),
+  examName,
+  subjectCount: Number(subjectCount),
+  students: []
+};
 
-const addStudent = () => { if (!name || !roll) return showToast("Name & Roll required");
+setProjects([...projects, newProject]);
+setActiveProjectIndex(projects.length);
+
+setMarks(Array(Number(subjectCount)).fill(""));
+go("app");
+showToast("Project created");
+
+};
+
+const deleteProject = (id) => { setProjects(projects.filter(p => p.id !== id)); showToast("Project deleted"); go("home"); };
+
+const activeProject = projects[activeProjectIndex];
+
+const updateMark = (i, v) => { if (v === "") return; if (Number(v) > 100 || Number(v) < 0) return showToast("0-100 only"); const c = [...marks]; c[i] = v; setMarks(c); };
+
+const addStudent = () => { if (!activeProject) return; if (!name || !roll) return showToast("Fill name & roll");
 
 const nums = marks.map(Number);
-if (nums.some((m) => isNaN(m))) return showToast("Fill all marks");
+if (nums.some(isNaN)) return showToast("Fill marks");
 
 const total = nums.reduce((a, b) => a + b, 0);
 const fail = nums.some((m) => m < 33);
@@ -42,38 +66,49 @@ const obj = {
   status: fail ? "FAIL" : "PASS",
 };
 
-const idx = students.findIndex((s) => s.roll === roll);
+const updated = [...projects];
+const p = updated[activeProjectIndex];
+
+const idx = p.students.findIndex(s => s.roll === roll);
 
 if (idx !== -1) {
-  if (!confirm("Student exists. Update marks?")) return;
-  const copy = [...students];
-  copy[idx] = obj;
-  setStudents(copy);
-  showToast("Updated student");
+  if (!confirm("Student exists. Update?") ) return;
+  p.students[idx] = obj;
 } else {
-  setStudents([...students, obj]);
-  showToast("Student added");
+  p.students.push(obj);
 }
 
+setProjects(updated);
 setViewStudent(obj);
+
 setName(""); setRoll("");
-setMarks(Array(Number(subjectCount)).fill(""));
+setMarks(Array(activeProject.subjectCount).fill(""));
+
+showToast("Saved");
 
 };
 
-const search = () => { const s = students.find((x) => x.roll === searchRoll); if (!s) showToast("Not found"); setViewStudent(s || null); };
+const search = () => { const s = activeProject?.students.find(x => x.roll === searchRoll); if (!s) showToast("Not found"); setViewStudent(s || null); };
 
-const merit = [...students] .sort((a, b) => b.gpa - a.gpa || b.total - a.total || a.roll - b.roll) .map((s, i) => ({ ...s, rank: i + 1 }));
+const merit = activeProject ? [...activeProject.students] .sort((a,b)=> b.gpa - a.gpa || b.total - a.total || a.roll - b.roll) .map((s,i)=> ({...s, rank:i+1})) : [];
 
-const summary = () => { const pass = students.filter((s) => s.status === "PASS").length; const fail = students.length - pass; const rate = ((pass / students.length) * 100 || 0).toFixed(2); return { pass, fail, rate }; };
+const summary = () => { if (!activeProject) return {pass:0,fail:0,rate:0}; const pass = activeProject.students.filter(s=>s.status==="PASS").length; const fail = activeProject.students.length - pass; const rate = ((pass / activeProject.students.length) * 100 || 0).toFixed(2); return {pass,fail,rate}; };
 
-const printMerit = () => { window.print(); };
+const downloadPDF = () => window.print();
 
-return ( <div style={dark ? styles.bgDark : styles.bgLight}>
+return ( <div className={dark ? "dark" : "light"} style={styles.body}>
 
-{toast && <div style={styles.toast}>{toast}</div>}
+<style jsx global>{`
+    @media print {
+      body * { visibility: hidden; }
+      .print-area, .print-area * { visibility: visible; }
+      .print-area { position: absolute; top: 0; left: 0; width: 100%; }
+    }
+  `}</style>
 
-  <button onClick={() => setDark(!dark)} style={styles.themeBtn}>{dark ? "🌙" : "☀️"}</button>
+  {toast && <div style={styles.toast}>{toast}</div>}
+
+  <button style={styles.themeBtn} onClick={()=>setDark(!dark)}>{dark ? "🌙" : "☀️"}</button>
 
   <div style={styles.dock}>
     {["home","setup","app","summary","merit"].map((p,i)=> (
@@ -81,34 +116,39 @@ return ( <div style={dark ? styles.bgDark : styles.bgLight}>
     ))}
   </div>
 
-  <div style={{
-    transform: anim ? "scale(0.97) translateY(15px)" : "scale(1)",
-    opacity: anim ? 0 : 1,
-    transition: "0.3s ease"
-  }}>
+  <div style={{transform: anim?"scale(0.97)":"scale(1)",opacity:anim?0:1,transition:"0.25s"}}>
 
     {page === "home" && (
       <div style={styles.center}>
         <h1 style={styles.title}>GPA Manager</h1>
-        <div style={styles.bigCard} onClick={()=>go("setup")}>➕ Create Project</div>
-        <div style={styles.bigCard} onClick={()=>go("app")}>📂 Previous Project</div>
+
+        <div style={styles.bigCard} onClick={()=>go("setup")}>➕ New Project</div>
+
+        {projects.map((p,i)=> (
+          <div key={p.id} style={styles.projectCard}>
+            <div onClick={()=>{setActiveProjectIndex(i); go("app");}}>
+              📘 {p.examName} ({p.students.length})
+            </div>
+            <button style={styles.deleteBtn} onClick={()=>deleteProject(p.id)}>🗑</button>
+          </div>
+        ))}
       </div>
     )}
 
     {page === "setup" && (
       <div style={styles.card}>
-        <h2>Setup</h2>
+        <h2>Create Project</h2>
         <input placeholder="Exam Name" value={examName} onChange={(e)=>setExamName(e.target.value)} />
         <input placeholder="Subjects" value={subjectCount} onChange={(e)=>setSubjectCount(e.target.value)} />
-        <button style={styles.primary} onClick={start}>Start</button>
+        <button style={styles.primary} onClick={createProject}>Create</button>
       </div>
     )}
 
-    {page === "app" && (
+    {page === "app" && activeProject && (
       <div style={styles.card}>
-        <h2>{examName}</h2>
+        <h2>{activeProject.examName}</h2>
 
-        <input placeholder="Student Name" value={name} onChange={(e)=>setName(e.target.value)} />
+        <input placeholder="Name" value={name} onChange={(e)=>setName(e.target.value)} />
         <input placeholder="Roll" value={roll} onChange={(e)=>setRoll(e.target.value)} />
 
         {marks.map((m,i)=>(
@@ -117,11 +157,11 @@ return ( <div style={dark ? styles.bgDark : styles.bgLight}>
 
         <button style={styles.primary} onClick={addStudent}>➕ Add Student</button>
 
-        <input placeholder="Search roll" value={searchRoll} onChange={(e)=>setSearchRoll(e.target.value)} />
+        <input placeholder="Search Roll" value={searchRoll} onChange={(e)=>setSearchRoll(e.target.value)} />
         <button style={styles.secondary} onClick={search}>Search</button>
 
         {viewStudent && (
-          <div style={{...styles.result, borderLeft:viewStudent.status==="PASS"?"4px solid #22c55e":"4px solid #ef4444"}}>
+          <div style={styles.result}>
             <h3>{viewStudent.name}</h3>
             <p>Roll {viewStudent.roll}</p>
             <p>Total {viewStudent.total}</p>
@@ -141,15 +181,37 @@ return ( <div style={dark ? styles.bgDark : styles.bgLight}>
       </div>
     )}
 
-    {page === "merit" && (
-      <div style={styles.card}>
+    {page === "merit" && activeProject && (
+      <div className="print-area" style={styles.card}>
         <div style={{display:"flex",justifyContent:"space-between"}}>
-          <h2>Merit List</h2>
-          <button style={styles.primary} onClick={printMerit}>Export PDF</button>
+          <h2>Merit Table</h2>
+          <button style={styles.primary} onClick={downloadPDF}>Download PDF</button>
         </div>
-        {merit.map((s)=> (
-          <div key={s.roll} style={styles.row}>#{s.rank} {s.name} ({s.roll})</div>
-        ))}
+
+        <table style={styles.table}>
+          <thead>
+            <tr>
+              <th>Rank</th>
+              <th>Name</th>
+              <th>Roll</th>
+              <th>GPA</th>
+              <th>Grade</th>
+              <th>Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {merit.map(s=> (
+              <tr key={s.roll}>
+                <td>{s.rank}</td>
+                <td>{s.name}</td>
+                <td>{s.roll}</td>
+                <td>{s.gpa}</td>
+                <td>{s.grade}</td>
+                <td>{s.total}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     )}
 
@@ -158,26 +220,30 @@ return ( <div style={dark ? styles.bgDark : styles.bgLight}>
 
 ); }
 
-const styles = { bgDark:{minHeight:"100vh",padding:20,background:"radial-gradient(circle at top,#020617,#0f172a)",color:"#e2e8f0"}, bgLight:{minHeight:"100vh",padding:20,background:"#eef2ff",color:"#0f172a"},
+const styles = { body:{minHeight:"100vh",padding:20,fontFamily:"sans-serif"},
 
-title:{fontSize:36,fontWeight:"bold",marginBottom:20}, center:{textAlign:"center"},
+center:{textAlign:"center"}, title:{fontSize:40,fontWeight:"bold"},
 
-bigCard:{margin:"12px auto",padding:18,maxWidth:300,borderRadius:24,background:"rgba(255,255,255,0.08)",backdropFilter:"blur(25px)",cursor:"pointer",transition:"0.25s"},
+bigCard:{margin:"10px auto",padding:18,maxWidth:320,borderRadius:18,background:"rgba(255,255,255,0.08)",cursor:"pointer"},
 
-card:{padding:20,borderRadius:24,background:"rgba(255,255,255,0.08)",backdropFilter:"blur(25px)"},
+projectCard:{display:"flex",justifyContent:"space-between",padding:12,marginTop:10,borderRadius:12,background:"rgba(255,255,255,0.08)"},
 
-primary:{marginTop:10,padding:12,borderRadius:14,border:"none",background:"linear-gradient(135deg,#6366f1,#22c55e)",color:"white"},
+deleteBtn:{border:"none",background:"transparent",color:"red"},
 
-secondary:{marginTop:10,padding:12,borderRadius:14,border:"1px solid #94a3b8",background:"transparent"},
+card:{padding:20,borderRadius:18,background:"rgba(255,255,255,0.08)"},
 
-result:{marginTop:12,padding:14,borderRadius:16,background:"rgba(59,130,246,0.15)"},
+primary:{marginTop:10,padding:12,borderRadius:12,border:"none",background:"linear-gradient(135deg,#6366f1,#22c55e)",color:"white"},
 
-dock:{position:"fixed",bottom:20,left:"50%",transform:"translateX(-50%)",display:"flex",gap:10,padding:10,borderRadius:20,background:"rgba(255,255,255,0.08)",backdropFilter:"blur(20px)"},
+secondary:{marginTop:10,padding:12,borderRadius:12,border:"1px solid gray",background:"transparent"},
 
-dockBtn:{padding:10,borderRadius:12,border:"none",background:"rgba(255,255,255,0.1)"},
+result:{marginTop:12,padding:14,borderRadius:12,background:"rgba(59,130,246,0.15)"},
 
-row:{marginTop:8,padding:10,borderRadius:12,background:"rgba(255,255,255,0.08)"},
+dock:{position:"fixed",bottom:20,left:"50%",transform:"translateX(-50%)",display:"flex",gap:10,padding:10,borderRadius:20,background:"rgba(0,0,0,0.3)"},
 
-themeBtn:{position:"fixed",top:20,right:20,padding:10,borderRadius:"50%",border:"none",background:"rgba(255,255,255,0.2)"},
+dockBtn:{padding:10,borderRadius:12,border:"none"},
 
-toast:{position:"fixed",top:20,left:"50%",transform:"translateX(-50%)",padding:"10px 16px",borderRadius:12,background:"black",color:"white",opacity:0.9} };
+toast:{position:"fixed",top:20,left:"50%",transform:"translateX(-50%)",background:"black",color:"white",padding:"8px 14px",borderRadius:10},
+
+themeBtn:{position:"fixed",top:20,right:20,padding:10,borderRadius:"50%",border:"none"},
+
+table:{width:"100%",marginTop:20,borderCollapse:"collapse"} };
