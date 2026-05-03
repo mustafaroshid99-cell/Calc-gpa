@@ -2,7 +2,6 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 
 // ─── Firebase config ──────────────────────────────────────────────────────────
-// NOTE: Replace with your own Firebase project config from console.firebase.google.com
 const FIREBASE_CONFIG = {
   apiKey: "AIzaSyBUrRK1CxFLiA9MXo7TJH3bnS9d9pJN7R0",
   authDomain: "calc-gpa-3cc87.firebaseapp.com",
@@ -13,14 +12,15 @@ const FIREBASE_CONFIG = {
   measurementId: "G-LMCWHSE517"
 };
 
+
 const ADMIN_EMAIL = "mustafaroshid99@gmail.com";
 
 // ─── GPA helpers ──────────────────────────────────────────────────────────────
 const getGP    = (m) => m >= 80 ? 5 : m >= 70 ? 4 : m >= 60 ? 3.5 : m >= 50 ? 3 : m >= 40 ? 2 : m >= 33 ? 1 : 0;
 const getGrade = (g) => g === 5 ? "A+" : g >= 4 ? "A" : g >= 3.5 ? "A-" : g >= 3 ? "B" : g >= 2 ? "C" : g >= 1 ? "D" : "F";
 const gradeColor = (g) =>
-  g === "A+" ? "#22c55e" : g === "A" ? "#34d399" : g === "A-" ? "#6ee7b7"
-  : g === "B" ? "#60a5fa" : g === "C" ? "#f59e0b" : g === "D" ? "#fb923c" : "#ef4444";
+  g === "A+" ? "#10b981" : g === "A" ? "#14b8a6" : g === "A-" ? "#06b6d4"
+  : g === "B" ? "#3b82f6" : g === "C" ? "#f59e0b" : g === "D" ? "#fb923c" : "#ef4444";
 
 const getMeritRank = (students) =>
   [...students]
@@ -33,27 +33,26 @@ const GlobalStyle = ({ dark }) => {
     @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600&display=swap');
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
-      --bg:       ${dark ? "#06090f" : "#f0f4ff"};
-      --surface:  ${dark ? "#0d1117" : "#ffffff"};
-      --surface2: ${dark ? "#161b27" : "#eef2ff"};
-      --border:   ${dark ? "#1f2937" : "#dde3f5"};
-      --text:     ${dark ? "#e6edf3" : "#0d1117"};
-      --text2:    ${dark ? "#7d8ea8" : "#5a6a8a"};
-      --accent:   ${dark ? "#3b82f6" : "#2563eb"};
-      --accent2:  ${dark ? "#8b5cf6" : "#7c3aed"};
-      --green:    ${dark ? "#22c55e" : "#16a34a"};
-      --red:      ${dark ? "#ef4444" : "#dc2626"};
-      --yellow:   ${dark ? "#f59e0b" : "#d97706"};
-      --gold:     #f59e0b;
+      --bg:       ${dark ? "#030712" : "#f8fafc"};
+      --surface:  ${dark ? "#0f172a" : "#ffffff"};
+      --surface2: ${dark ? "#1e293b" : "#f1f5f9"};
+      --border:   ${dark ? "#334155" : "#cbd5e1"};
+      --text:     ${dark ? "#f1f5f9" : "#0f172a"};
+      --text2:    ${dark ? "#94a3b8" : "#64748b"};
+      --accent:   #06b6d4;
+      --accent2:  #8b5cf6;
+      --green:    #10b981;
+      --red:      #ef4444;
+      --yellow:   #f59e0b;
     }
     body {
       background: var(--bg); color: var(--text);
       font-family: 'Outfit', sans-serif; min-height: 100vh;
       transition: background 0.35s, color 0.35s;
     }
-    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar { width: 6px; }
     ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
     input[type="text"], input[type="number"], input[type="email"], input[type="password"], input:not([type]) {
       width: 100%; padding: 12px 14px; border-radius: 10px;
       border: 1.5px solid var(--border); background: var(--surface2);
@@ -158,9 +157,26 @@ const Spinner = () => (
   </div>
 );
 
+// ─── Account Blocked Modal ────────────────────────────────────────────────────
+const BlockedModal = ({ onSignOut }) => (
+  <div style={{
+    position:"fixed",inset:0,zIndex:99999,background:"rgba(0,0,0,0.7)",
+    display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(4px)",
+  }}>
+    <Card style={{maxWidth:380,textAlign:"center",animation:"splashIn 0.4s ease"}}>
+      <div style={{fontSize:48,marginBottom:16}}>🚫</div>
+      <h2 style={{fontWeight:800,fontSize:22,marginBottom:8}}>Account Blocked</h2>
+      <p style={{color:"var(--text2)",fontSize:14,marginBottom:24}}>
+        Your account has been blocked by the administrator. If you believe this is an error, please contact your administrator.
+      </p>
+      <Btn onClick={onSignOut} style={{width:"100%"}}>Sign Out</Btn>
+    </Card>
+  </div>
+);
+
 // ─── Logo Splash ──────────────────────────────────────────────────────────────
 const LogoSplash = ({ onDone }) => {
-  const [phase, setPhase] = useState("in"); // in | hold | out
+  const [phase, setPhase] = useState("in");
 
   useEffect(() => {
     const t1 = setTimeout(() => setPhase("out"), 1800);
@@ -171,52 +187,51 @@ const LogoSplash = ({ onDone }) => {
   return (
     <div style={{
       position:"fixed",inset:0,zIndex:99999,
-      background:"linear-gradient(135deg,#06090f 0%,#0d1117 50%,#06090f 100%)",
+      background:"linear-gradient(135deg,#030712 0%,#0f172a 50%,#030712 100%)",
       display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
       animation: phase==="out" ? "splashOut 0.5s ease forwards" : "none",
     }}>
-      {/* Glow ring */}
       <div style={{
         position:"relative",width:140,height:140,marginBottom:28,
         animation:"splashIn 0.7s cubic-bezier(0.34,1.56,0.64,1) forwards",
       }}>
         <div style={{
           position:"absolute",inset:-12,borderRadius:"50%",
-          background:"conic-gradient(from 0deg,#3b82f6,#8b5cf6,#3b82f6)",
+          background:"conic-gradient(from 0deg,#06b6d4,#8b5cf6,#06b6d4)",
           animation:"spin 3s linear infinite",opacity:0.6,
           filter:"blur(8px)",
         }}/>
         <div style={{
           position:"relative",width:140,height:140,borderRadius:"50%",
-          background:"linear-gradient(135deg,#0d1117,#161b27)",
-          border:"2px solid #1f2937",
+          background:"linear-gradient(135deg,#0f172a,#1e293b)",
+          border:"2px solid #334155",
           display:"flex",alignItems:"center",justifyContent:"center",
-          boxShadow:"0 0 40px rgba(59,130,246,0.3)",
+          boxShadow:"0 0 40px rgba(6,182,212,0.3)",
         }}>
-          <span style={{fontSize:60}}>🎓</span>
+          <span style={{fontSize:60}}>📚</span>
         </div>
       </div>
 
       <div style={{
         fontFamily:"'Outfit',sans-serif",fontSize:36,fontWeight:900,
-        background:"linear-gradient(135deg,#60a5fa,#a78bfa)",
+        background:"linear-gradient(135deg,#06b6d4,#a78bfa)",
         WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",
         letterSpacing:"-0.02em",marginBottom:8,
         animation:"splashIn 0.7s 0.15s cubic-bezier(0.34,1.56,0.64,1) both",
-      }}>GPA Manager</div>
+      }}>EduGrade</div>
 
       <div style={{
-        color:"#7d8ea8",fontSize:13,fontWeight:500,letterSpacing:"0.12em",
+        color:"#94a3b8",fontSize:13,fontWeight:500,letterSpacing:"0.12em",
         textTransform:"uppercase",
         animation:"splashIn 0.6s 0.3s ease both",
-      }}>Grade · Calculate · Rank</div>
+      }}>Academic Excellence</div>
     </div>
   );
 };
 
 // ─── Auth Page ────────────────────────────────────────────────────────────────
 const AuthPage = ({ firebase, onAuth, showToast }) => {
-  const [mode, setMode]       = useState("login"); // login | signup | reset
+  const [mode, setMode]       = useState("login");
   const [name, setName]       = useState("");
   const [email, setEmail]     = useState("");
   const [password, setPass]   = useState("");
@@ -230,7 +245,6 @@ const AuthPage = ({ firebase, onAuth, showToast }) => {
     try {
       if (mode === "login") {
         const cred = await firebase.auth.signInWithEmailAndPassword(email, password);
-        // Check blocked
         const snap = await firebase.db.collection("users").doc(cred.user.uid).get();
         if (snap.exists && snap.data().blocked) {
           await firebase.auth.signOut();
@@ -246,7 +260,6 @@ const AuthPage = ({ firebase, onAuth, showToast }) => {
           name: name.trim(), email, createdAt: new Date().toISOString(),
           blocked: false, uid: cred.user.uid,
         });
-        // Notify admin
         await firebase.db.collection("adminNotifications").add({
           type: "newUser", name: name.trim(), email,
           uid: cred.user.uid, createdAt: new Date().toISOString(), read: false,
@@ -269,16 +282,14 @@ const AuthPage = ({ firebase, onAuth, showToast }) => {
       padding:"20px 16px",
     }}>
       <div style={{width:"100%",maxWidth:420,animation:"up 0.35s ease"}}>
-
-        {/* Logo */}
         <div style={{textAlign:"center",marginBottom:36}}>
           <div style={{
             width:70,height:70,borderRadius:"50%",margin:"0 auto 16px",
-            background:"linear-gradient(135deg,#1e3a8a,#4c1d95)",
+            background:"linear-gradient(135deg,#06b6d4,#8b5cf6)",
             display:"flex",alignItems:"center",justifyContent:"center",fontSize:32,
-            boxShadow:"0 8px 30px rgba(59,130,246,0.25)",
-          }}>🎓</div>
-          <h1 style={{fontSize:28,fontWeight:800,marginBottom:4}}>GPA Manager</h1>
+            boxShadow:"0 8px 30px rgba(6,182,212,0.25)",
+          }}>📚</div>
+          <h1 style={{fontSize:28,fontWeight:800,marginBottom:4}}>EduGrade</h1>
           <p style={{color:"var(--text2)",fontSize:14}}>
             {mode==="login"?"Sign in to your account":mode==="signup"?"Create a new account":"Reset your password"}
           </p>
@@ -344,6 +355,8 @@ const AdminPanel = ({ firebase, showToast, onClose }) => {
   const [notifications, setNotifications] = useState([]);
   const [tab, setTab]                     = useState("notifs");
   const [loading, setLoading]             = useState(true);
+  const [selectedUserProjects, setSelectedUserProjects] = useState(null);
+  const [viewingProjects, setViewingProjects] = useState(false);
 
   useEffect(() => {
     const loadData = async () => {
@@ -378,7 +391,65 @@ const AdminPanel = ({ firebase, showToast, onClose }) => {
     showToast("✓ All marked as read");
   };
 
+  const loadUserProjects = async (user) => {
+    try {
+      const snap = await firebase.db.collection("users").doc(user.id)
+        .collection("projects").orderBy("createdAt","asc").get();
+      setSelectedUserProjects({ user, projects: snap.docs.map(d => ({ id: d.id, ...d.data() })) });
+      setViewingProjects(true);
+    } catch(e) { showToast("✗ " + e.message); }
+  };
+
   const unreadCount = notifications.filter(n => !n.read).length;
+
+  if (viewingProjects && selectedUserProjects) {
+    return (
+      <div style={{
+        position:"fixed",inset:0,zIndex:5000,background:"rgba(0,0,0,0.7)",
+        display:"flex",alignItems:"flex-end",justifyContent:"center",backdropFilter:"blur(4px)",
+      }} onClick={e=>e.target===e.currentTarget&&setViewingProjects(false)}>
+        <div style={{
+          background:"var(--surface)",border:"1.5px solid var(--border)",
+          borderRadius:"22px 22px 0 0",width:"100%",maxWidth:600,
+          maxHeight:"85vh",display:"flex",flexDirection:"column",
+          animation:"up 0.3s ease",
+        }}>
+          <div style={{padding:"20px 22px 0",borderBottom:"1.5px solid var(--border)"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+              <div>
+                <div style={{fontSize:11,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",
+                  color:"var(--accent)",marginBottom:4}}>📊 User Data</div>
+                <h2 style={{fontWeight:800,fontSize:20}}>{selectedUserProjects.user.name}</h2>
+              </div>
+              <button onClick={()=>setViewingProjects(false)} style={{
+                width:36,height:36,borderRadius:"50%",border:"1.5px solid var(--border)",
+                background:"var(--surface2)",color:"var(--text2)",fontSize:18,
+                display:"flex",alignItems:"center",justifyContent:"center",
+              }}>×</button>
+            </div>
+          </div>
+
+          <div style={{flex:1,overflowY:"auto",padding:20}}>
+            {selectedUserProjects.projects.length === 0 ? (
+              <div style={{textAlign:"center",color:"var(--text2)",padding:"40px 0",fontSize:14}}>
+                No projects yet
+              </div>
+            ) : selectedUserProjects.projects.map(p => (
+              <div key={p.id} style={{
+                background:"var(--surface2)",border:"1.5px solid var(--border)",
+                borderRadius:12,padding:"14px",marginBottom:10,
+              }}>
+                <div style={{fontWeight:700,fontSize:15,marginBottom:6}}>{p.examName}</div>
+                <div style={{color:"var(--text2)",fontSize:12}}>
+                  {p.students?.length || 0} student{p.students?.length !== 1?"s":""} · {p.subjectCount} subject{p.subjectCount!==1?"s":""}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{
@@ -391,7 +462,6 @@ const AdminPanel = ({ firebase, showToast, onClose }) => {
         maxHeight:"85vh",display:"flex",flexDirection:"column",
         animation:"up 0.3s ease",
       }}>
-        {/* Header */}
         <div style={{padding:"20px 22px 0",borderBottom:"1.5px solid var(--border)",paddingBottom:0}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
             <div>
@@ -429,7 +499,6 @@ const AdminPanel = ({ firebase, showToast, onClose }) => {
           </div>
         </div>
 
-        {/* Body */}
         <div style={{flex:1,overflowY:"auto",padding:20}}>
           {loading ? <Spinner /> : (
             <>
@@ -503,7 +572,7 @@ const AdminPanel = ({ firebase, showToast, onClose }) => {
                       <div style={{fontWeight:700,fontSize:14,
                         display:"flex",alignItems:"center",gap:6}}>
                         {u.name}
-                        {u.email===ADMIN_EMAIL&&<Pill color="var(--gold)">Admin</Pill>}
+                        {u.email===ADMIN_EMAIL&&<Pill color="var(--yellow)">Admin</Pill>}
                         {u.blocked&&<Pill color="var(--red)">Blocked</Pill>}
                       </div>
                       <div style={{color:"var(--text2)",fontSize:12,
@@ -511,14 +580,22 @@ const AdminPanel = ({ firebase, showToast, onClose }) => {
                         {u.email}
                       </div>
                     </div>
-                    {u.email !== ADMIN_EMAIL && (
+                    <div style={{display:"flex",gap:6}}>
+                      {u.email !== ADMIN_EMAIL && (
+                        <Btn
+                          variant={u.blocked ? "secondary" : "danger"}
+                          onClick={() => toggleBlock(u)}
+                          style={{padding:"7px 12px",fontSize:12,whiteSpace:"nowrap",flexShrink:0}}>
+                          {u.blocked ? "Unblock" : "Block"}
+                        </Btn>
+                      )}
                       <Btn
-                        variant={u.blocked ? "secondary" : "danger"}
-                        onClick={() => toggleBlock(u)}
+                        variant="secondary"
+                        onClick={() => loadUserProjects(u)}
                         style={{padding:"7px 12px",fontSize:12,whiteSpace:"nowrap",flexShrink:0}}>
-                        {u.blocked ? "Unblock" : "Block"}
+                        📊 Data
                       </Btn>
-                    )}
+                    </div>
                   </div>
                 ))
               )}
@@ -564,8 +641,8 @@ const Dock = ({ page, go, isAdmin, onAdminOpen }) => {
         <button onClick={onAdminOpen} style={{
           display:"flex",flexDirection:"column",alignItems:"center",gap:2,
           padding:"8px 14px",borderRadius:16,border:"none",minWidth:50,
-          background:"color-mix(in srgb,var(--gold) 15%,transparent)",
-          color:"var(--gold)",fontSize:17,transition:"all 0.17s",
+          background:"color-mix(in srgb,var(--yellow) 15%,transparent)",
+          color:"var(--yellow)",fontSize:17,transition:"all 0.17s",
         }}>
           <span>⚡</span>
           <span style={{fontSize:10,fontWeight:600,letterSpacing:"0.05em"}}>Admin</span>
@@ -575,10 +652,10 @@ const Dock = ({ page, go, isAdmin, onAdminOpen }) => {
   );
 };
 
-// ─── PDF Generator ────────────────────────────────────────────────────────────
-const downloadPDF = async (project, showToast) => {
-  if (!project?.students.length) return showToast("⚠ No students to export");
-  showToast("⏳ Generating PDF…");
+// ─── PDF Generators ───────────────────────────────────────────────────────────
+const downloadMarksheet = async (student, project, showToast) => {
+  if (!student) return showToast("⚠ No student selected");
+  showToast("⏳ Generating marksheet…");
 
   const loadScript = (src) => new Promise((res, rej) => {
     if (document.querySelector(`script[src="${src}"]`)) { res(); return; }
@@ -593,69 +670,206 @@ const downloadPDF = async (project, showToast) => {
   } catch { return showToast("✗ Could not load PDF library"); }
 
   const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({ orientation:"landscape", unit:"mm", format:"a4" });
+  const doc = new jsPDF({ orientation:"portrait", unit:"mm", format:"a4" });
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
 
+  // Header
   doc.setFont("helvetica","bold");
-  doc.setFontSize(20);
-  doc.setTextColor(30,40,80);
-  doc.text(project.examName, 14, 18);
+  doc.setFontSize(18);
+  doc.setTextColor(6, 182, 212);
+  doc.text("EduGrade", 15, 15);
+  
   doc.setFont("helvetica","normal");
   doc.setFontSize(10);
-  doc.setTextColor(100,110,130);
-  doc.text(`Total Students: ${project.students.length}  |  Subjects: ${project.subjectCount}  |  Generated: ${new Date().toLocaleDateString()}`, 14, 26);
+  doc.setTextColor(80, 80, 80);
+  doc.text("Student Marksheet", 15, 22);
 
-  // Sort by roll number
+  // Exam info
+  doc.setFontSize(11);
+  doc.setTextColor(30, 30, 30);
+  doc.setFont("helvetica","bold");
+  doc.text("Exam:", 15, 32);
+  doc.setFont("helvetica","normal");
+  doc.text(project.examName, 45, 32);
+
+  // Student info box
+  doc.setDrawColor(6, 182, 212);
+  doc.setLineWidth(0.5);
+  doc.rect(15, 40, pageWidth - 30, 35);
+
+  doc.setFont("helvetica","bold");
+  doc.setFontSize(10);
+  doc.setTextColor(6, 182, 212);
+  doc.text("STUDENT INFORMATION", 18, 45);
+
+  doc.setFont("helvetica","normal");
+  doc.setFontSize(9);
+  doc.setTextColor(30, 30, 30);
+  doc.text(`Name: ${student.name}`, 18, 52);
+  doc.text(`Roll No.: ${student.roll}`, 18, 59);
+  doc.text(`Total Marks: ${student.total}/${project.subjectCount * 100}`, 18, 66);
+  doc.text(`GPA: ${student.gpa}`, 100, 52);
+  doc.text(`Grade: ${student.grade}`, 100, 59);
+  doc.text(`Status: ${student.status}`, 100, 66);
+
+  // Subject marks table
+  const subjectNames = project.subjectNames || Array.from({length: project.subjectCount}, (_, i) => `Subject ${i + 1}`);
+  const head = [["S.No", "Subject", "Marks Obtained", "Out of 100"]];
+  const body = (student.subjectMarks || []).map((mark, i) => [
+    i + 1,
+    subjectNames[i] || `Subject ${i + 1}`,
+    mark || 0,
+    "100"
+  ]);
+
+  doc.autoTable({
+    head,
+    body,
+    startY: 80,
+    styles: { font: "helvetica", fontSize: 9, cellPadding: 4 },
+    headStyles: { fillColor: [6, 182, 212], textColor: [255, 255, 255], fontStyle: "bold" },
+    alternateRowStyles: { fillColor: [240, 248, 255] },
+    columnStyles: {
+      0: { halign: "center", cellWidth: 15 },
+      2: { halign: "center", cellWidth: 30 },
+      3: { halign: "center", cellWidth: 25 }
+    },
+    didParseCell: (data) => {
+      if (data.section === "body" && data.column.index === 2) {
+        const mark = parseInt(data.cell.raw);
+        if (mark >= 80) {
+          data.cell.styles.textColor = [16, 185, 129];
+          data.cell.styles.fontStyle = "bold";
+        } else if (mark < 33) {
+          data.cell.styles.textColor = [239, 68, 68];
+          data.cell.styles.fontStyle = "bold";
+        }
+      }
+    },
+    margin: { left: 15, right: 15 }
+  });
+
+  // Result summary
+  const finalY = doc.lastAutoTable.finalY + 15;
+  doc.setFont("helvetica","bold");
+  doc.setFontSize(11);
+  doc.setTextColor(6, 182, 212);
+  doc.text("RESULT SUMMARY", 15, finalY);
+
+  doc.setFont("helvetica","normal");
+  doc.setFontSize(9);
+  doc.setTextColor(30, 30, 30);
+  const summaryY = finalY + 8;
+  doc.text(`Average Marks: ${(student.total / project.subjectCount).toFixed(2)}`, 15, summaryY);
+  doc.text(`Percentage: ${((student.total / (project.subjectCount * 100)) * 100).toFixed(2)}%`, 15, summaryY + 7);
+  doc.text(`Grade: ${student.grade}`, 15, summaryY + 14);
+  doc.text(`Status: ${student.status === 'PASS' ? '✓ PASS' : '✗ FAIL'}`, 15, summaryY + 21);
+
+  // Footer
+  doc.setFontSize(8);
+  doc.setTextColor(150, 150, 150);
+  doc.text("This is an automatically generated marksheet from EduGrade", 15, pageHeight - 10);
+  doc.text(`Generated: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`, 15, pageHeight - 5);
+
+  doc.save(`${student.name}_Marksheet_${project.examName.replace(/\s+/g, "_")}.pdf`);
+  showToast("✓ Marksheet downloaded!");
+};
+
+const downloadMeritListPDF = async (project, showToast) => {
+  if (!project?.students.length) return showToast("⚠ No students to export");
+  showToast("⏳ Generating Merit List PDF…");
+
+  const loadScript = (src) => new Promise((res, rej) => {
+    if (document.querySelector(`script[src="${src}"]`)) { res(); return; }
+    const s = document.createElement("script");
+    s.src = src; s.onload = res; s.onerror = rej;
+    document.head.appendChild(s);
+  });
+
+  try {
+    await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js");
+    await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js");
+  } catch { return showToast("✗ Could not load PDF library"); }
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(16);
+  doc.setTextColor(6, 182, 212);
+  doc.text("Merit List", 15, 15);
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  doc.setTextColor(100, 100, 100);
+  doc.text(`Exam: ${project.examName}`, 15, 22);
+  doc.text(`Total Students: ${project.students.length} | Date: ${new Date().toLocaleDateString()}`, 15, 28);
+
   const sortedByRoll = [...project.students].sort((a,b) =>
     String(a.roll).localeCompare(String(b.roll), undefined, { numeric:true })
   );
   const meritRanks = getMeritRank(project.students);
-  const subjectHeaders = Array.from({ length:project.subjectCount }, (_,i) => `Sub ${i+1}`);
-  const head = [["#","Name","Roll","Merit","GPA","Grade","Total","Status",...subjectHeaders]];
-  const body = sortedByRoll.map((s,i) => [
-    i+1, s.name, s.roll, `#${meritRanks[s.roll]}`, s.gpa, s.grade,
-    s.total, s.status, ...(s.subjectMarks||Array(project.subjectCount).fill("—")),
+
+  const head = [["Rank", "Name", "Roll", "GPA", "Grade", "Total", "Status"]];
+  const body = sortedByRoll.map((s) => [
+    meritRanks[s.roll],
+    s.name,
+    s.roll,
+    s.gpa,
+    s.grade,
+    s.total,
+    s.status
   ]);
 
   doc.autoTable({
-    head, body, startY:32,
-    styles:{ font:"helvetica", fontSize:9, cellPadding:3 },
-    headStyles:{ fillColor:[37,99,235], textColor:255, fontStyle:"bold" },
-    alternateRowStyles:{ fillColor:[245,247,255] },
-    columnStyles:{
-      0:{cellWidth:8,halign:"center"},3:{cellWidth:14,halign:"center"},
-      4:{cellWidth:12,halign:"center"},5:{cellWidth:12,halign:"center"},
-      6:{cellWidth:14,halign:"center"},7:{cellWidth:14,halign:"center"},
+    head, body, startY: 35,
+    styles: { font: "helvetica", fontSize: 9, cellPadding: 4 },
+    headStyles: { fillColor: [6, 182, 212], textColor: [255, 255, 255], fontStyle: "bold" },
+    alternateRowStyles: { fillColor: [240, 248, 255] },
+    columnStyles: {
+      0: { halign: "center", cellWidth: 15 },
+      3: { halign: "center", cellWidth: 18 },
+      4: { halign: "center", cellWidth: 16 },
+      5: { halign: "center", cellWidth: 18 },
+      6: { halign: "center", cellWidth: 18 }
     },
-    didParseCell:(data) => {
-      if (data.section==="body") {
-        if (data.column.index===7) {
-          const v = data.cell.raw;
-          data.cell.styles.textColor = v==="PASS"?[22,163,74]:[220,38,38];
+    didParseCell: (data) => {
+      if (data.section === "body") {
+        if (data.column.index === 6) {
+          const status = data.cell.raw;
+          data.cell.styles.textColor = status === "PASS" ? [16, 185, 129] : [239, 68, 68];
           data.cell.styles.fontStyle = "bold";
         }
-        if (data.column.index===5) {
-          const g=data.cell.raw;
-          data.cell.styles.textColor = g==="A+"?[34,197,94]:g==="A"?[52,211,153]
-            :g==="A-"?[110,231,183]:g==="B"?[96,165,250]
-            :g==="C"?[245,158,11]:g==="D"?[251,146,60]:[239,68,68];
-          data.cell.styles.fontStyle="bold";
+        if (data.column.index === 4) {
+          const grade = data.cell.raw;
+          const colorMap = {
+            "A+": [16, 185, 129],
+            "A": [20, 184, 166],
+            "A-": [6, 182, 212],
+            "B": [59, 130, 246],
+            "C": [245, 158, 11],
+            "D": [251, 146, 60],
+            "F": [239, 68, 68]
+          };
+          data.cell.styles.textColor = colorMap[grade] || [30, 30, 30];
+          data.cell.styles.fontStyle = "bold";
         }
       }
     },
-    margin:{left:14,right:14},
+    margin: { left: 12, right: 12 }
   });
 
   const pageCount = doc.internal.getNumberOfPages();
-  for (let i=1; i<=pageCount; i++) {
+  for (let i = 1; i <= pageCount; i++) {
     doc.setPage(i);
     doc.setFontSize(8);
-    doc.setTextColor(160,170,190);
-    doc.text(`Page ${i} of ${pageCount}`, doc.internal.pageSize.width-20, doc.internal.pageSize.height-8, {align:"right"});
-    doc.text("GPA Manager", 14, doc.internal.pageSize.height-8);
+    doc.setTextColor(150, 150, 150);
+    doc.text(`Page ${i} of ${pageCount}`, doc.internal.pageSize.getWidth() - 20, doc.internal.pageSize.getHeight() - 8, { align: "right" });
   }
 
-  doc.save(`${project.examName.replace(/\s+/g,"_")}_students.pdf`);
-  showToast("✓ PDF downloaded!");
+  doc.save(`${project.examName.replace(/\s+/g, "_")}_Merit_List.pdf`);
+  showToast("✓ Merit List PDF downloaded!");
 };
 
 // ─── Firebase Loader ──────────────────────────────────────────────────────────
@@ -702,18 +916,18 @@ export default function Home() {
   const [dark,    setDark]    = useState(true);
   const [toast,   setToast]   = useState("");
   const [showAdmin, setShowAdmin] = useState(false);
+  const [isAccountBlocked, setIsAccountBlocked] = useState(false);
 
-  // Auth state
   const [user,    setUser]    = useState(null);
   const [authReady, setAuthReady] = useState(false);
 
-  // Project data
   const [projects, setProjects] = useState([]);
   const [activeProjectIndex, setActiveProjectIndex] = useState(null);
 
-  // Entry fields
   const [examName,     setExamName]     = useState("");
   const [subjectCount, setSubjectCount] = useState("");
+  const [subjectNames, setSubjectNames] = useState([]);
+  const [showSubjectInput, setShowSubjectInput] = useState(false);
   const [name,         setName]         = useState("");
   const [roll,         setRoll]         = useState("");
   const [marks,        setMarks]        = useState([]);
@@ -725,18 +939,21 @@ export default function Home() {
     setToast(msg); setTimeout(() => setToast(""), 2400);
   }, []);
 
-  // ── Auth listener ──
   useEffect(() => {
     if (!firebase) return;
     const unsub = firebase.auth.onAuthStateChanged(async (u) => {
       setUser(u);
       setAuthReady(true);
       if (u) {
-        // Load user's projects from Firestore
+        const snap = await firebase.db.collection("users").doc(u.uid).get();
+        if (snap.exists && snap.data().blocked) {
+          setIsAccountBlocked(true);
+          return;
+        }
         try {
-          const snap = await firebase.db.collection("users").doc(u.uid)
+          const projSnap = await firebase.db.collection("users").doc(u.uid)
             .collection("projects").orderBy("createdAt","asc").get();
-          setProjects(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+          setProjects(projSnap.docs.map(d => ({ id: d.id, ...d.data() })));
         } catch(e) { console.error("Load projects error:", e); }
       } else {
         setProjects([]);
@@ -748,13 +965,12 @@ export default function Home() {
 
   const isAdmin = user?.email === ADMIN_EMAIL;
 
-  // ── Dark mode persist ──
   useEffect(() => {
-    const d = localStorage.getItem("gpa_dark");
+    const d = localStorage.getItem("edu_dark");
     if (d !== null) setDark(JSON.parse(d));
   }, []);
   useEffect(() => {
-    localStorage.setItem("gpa_dark", JSON.stringify(dark));
+    localStorage.setItem("edu_dark", JSON.stringify(dark));
   }, [dark]);
 
   const go = useCallback((p) => {
@@ -764,35 +980,36 @@ export default function Home() {
 
   const activeProject = projects[activeProjectIndex] ?? null;
 
-  // ── Save projects to Firestore ──
-  const saveProjectsToFirestore = useCallback(async (updatedProjects) => {
-    if (!user || !firebase) return;
-    // We'll upsert the changed project
-    // For simplicity, track by project id
-  }, [user, firebase]);
-
-  // ── Create project ──
   const createProject = async () => {
     if (!examName.trim() || !subjectCount) return showToast("⚠ Fill all fields");
     const n = Number(subjectCount);
     if (n<1||n>20) return showToast("⚠ Subjects: 1–20");
     setSaving(true);
     try {
-      const np = { examName:examName.trim(), subjectCount:n, students:[], createdAt:new Date().toISOString() };
+      const names = showSubjectInput ? subjectNames.filter(s => s.trim()) : [];
+      const np = { 
+        examName:examName.trim(), 
+        subjectCount:n, 
+        students:[], 
+        subjectNames: names.length > 0 ? names : undefined,
+        createdAt:new Date().toISOString() 
+      };
       const docRef = await firebase.db.collection("users").doc(user.uid).collection("projects").add(np);
       const newP = { ...np, id:docRef.id };
       const updated = [...projects, newP];
       setProjects(updated);
       setActiveProjectIndex(updated.length-1);
       setMarks(Array(n).fill(""));
-      setExamName(""); setSubjectCount("");
+      setExamName(""); 
+      setSubjectCount("");
+      setSubjectNames([]);
+      setShowSubjectInput(false);
       go("app");
       showToast("✓ Project created");
     } catch(e) { showToast("✗ " + e.message); }
     setSaving(false);
   };
 
-  // ── Delete project ──
   const deleteProject = async (id) => {
     if (!window.confirm("Delete this project and all its data?")) return;
     try {
@@ -804,7 +1021,6 @@ export default function Home() {
     } catch(e) { showToast("✗ " + e.message); }
   };
 
-  // ── Add/update student ──
   const addStudent = async () => {
     if (!activeProject) return;
     if (!name.trim()||!roll.trim()) return showToast("⚠ Name & Roll required");
@@ -854,7 +1070,9 @@ export default function Home() {
 
   const signOut = async () => {
     await firebase.auth.signOut();
-    setProjects([]); setActiveProjectIndex(null);
+    setProjects([]); 
+    setActiveProjectIndex(null);
+    setIsAccountBlocked(false);
     go("home");
     showToast("✓ Signed out");
   };
@@ -873,44 +1091,24 @@ export default function Home() {
     return {pass,fail,rate:((pass/activeProject.students.length)*100).toFixed(1),avg,total:activeProject.students.length};
   };
 
-  // ── Render ──
   return (
     <>
       <GlobalStyle dark={dark}/>
       {toast && <Toast msg={toast}/>}
       {splash && <LogoSplash onDone={()=>setSplash(false)}/>}
+      {isAccountBlocked && <BlockedModal onSignOut={signOut} />}
       {showAdmin && firebase && <AdminPanel firebase={firebase} showToast={showToast} onClose={()=>setShowAdmin(false)}/>}
-
-      {/* Firebase config reminder banner */}
-      {FIREBASE_CONFIG.apiKey === "AIzaSyDEMO_REPLACE_WITH_YOUR_KEY" && !splash && (
-        <div style={{
-          position:"fixed",top:0,left:0,right:0,zIndex:8000,
-          background:"linear-gradient(90deg,#92400e,#78350f)",
-          color:"#fef3c7",padding:"10px 16px",fontSize:13,fontWeight:600,
-          textAlign:"center",lineHeight:1.4,
-        }}>
-          ⚠ Replace FIREBASE_CONFIG in the code with your own Firebase project credentials to enable auth &amp; data sync.
-          <a href="https://console.firebase.google.com" target="_blank" rel="noreferrer"
-            style={{color:"#fcd34d",marginLeft:8,textDecoration:"underline"}}>
-            Get credentials →
-          </a>
-        </div>
-      )}
 
       <div style={{
         maxWidth:540,margin:"0 auto",
-        paddingTop: FIREBASE_CONFIG.apiKey==="AIzaSyDEMO_REPLACE_WITH_YOUR_KEY" ? 70 : 20,
+        paddingTop:20,
         paddingLeft:14,paddingRight:14,paddingBottom:110,
         opacity:anim?0:1,transform:anim?"translateY(12px)":"translateY(0)",
         transition:"opacity 0.19s, transform 0.19s",
       }}>
 
-        {/* ── Loading ── */}
-        {(!fbReady || !authReady) && !splash && (
-          <Spinner/>
-        )}
+        {(!fbReady || !authReady) && !splash && <Spinner/>}
 
-        {/* ── Firebase error ── */}
         {fbError && (
           <Card style={{marginTop:40,textAlign:"center"}}>
             <div style={{fontSize:36,marginBottom:12}}>❌</div>
@@ -919,13 +1117,11 @@ export default function Home() {
           </Card>
         )}
 
-        {/* ── Auth ── */}
         {fbReady && authReady && !user && !fbError && (
           <AuthPage firebase={firebase} onAuth={setUser} showToast={showToast}/>
         )}
 
-        {/* ── Main App ── */}
-        {fbReady && authReady && user && !fbError && (
+        {fbReady && authReady && user && !fbError && !isAccountBlocked && (
           <>
             {/* HOME */}
             {page==="home" && (
@@ -934,8 +1130,8 @@ export default function Home() {
                   paddingTop:12,marginBottom:32}}>
                   <div>
                     <div style={{fontSize:12,fontWeight:700,letterSpacing:"0.14em",textTransform:"uppercase",
-                      color:"var(--accent)",marginBottom:6}}>Academic Tool</div>
-                    <h1 style={{fontSize:36,fontWeight:900,lineHeight:1.1}}>GPA Manager</h1>
+                      color:"var(--accent)",marginBottom:6}}>Academic Excellence</div>
+                    <h1 style={{fontSize:36,fontWeight:900,lineHeight:1.1}}>EduGrade</h1>
                     <p style={{color:"var(--text2)",fontSize:13,marginTop:5}}>
                       Hi, {user.displayName||user.email?.split("@")[0]} 👋
                     </p>
@@ -966,7 +1162,7 @@ export default function Home() {
 
                 {projects.length===0 ? (
                   <div style={{textAlign:"center",padding:"44px 0",color:"var(--text2)",fontSize:14}}>
-                    <div style={{fontSize:38,marginBottom:12}}>📋</div>
+                    <div style={{fontSize:38,marginBottom:12}}>📚</div>
                     No projects yet — create one above!
                   </div>
                 ) : projects.map((p,i)=>(
@@ -999,8 +1195,33 @@ export default function Home() {
                   <div>
                     <Label>Number of Subjects</Label>
                     <input type="number" placeholder="e.g. 6" value={subjectCount}
-                      onChange={e=>setSubjectCount(e.target.value)} min={1} max={20}
-                      onKeyDown={e=>e.key==="Enter"&&createProject()}/>
+                      onChange={e=>{setSubjectCount(e.target.value); const n = Number(e.target.value); setSubjectNames(Array(n).fill(""));}}
+                      min={1} max={20}/>
+                  </div>
+                  <div>
+                    <Label style={{marginBottom: 10}}>
+                      <input type="checkbox" checked={showSubjectInput} 
+                        onChange={(e)=>setShowSubjectInput(e.target.checked)} 
+                        style={{marginRight: 8, cursor: "pointer"}}/>
+                      Add Subject Names (Optional)
+                    </Label>
+                    {showSubjectInput && subjectCount && (
+                      <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                        {Array(Number(subjectCount)).fill(null).map((_, i) => (
+                          <input
+                            key={i}
+                            type="text"
+                            placeholder={`Subject ${i + 1}`}
+                            value={subjectNames[i] || ""}
+                            onChange={(e) => {
+                              const updated = [...subjectNames];
+                              updated[i] = e.target.value;
+                              setSubjectNames(updated);
+                            }}
+                          />
+                        ))}
+                      </div>
+                    )}
                   </div>
                   <Btn onClick={createProject} loading={saving} style={{width:"100%",marginTop:4}}>
                     Create Project →
@@ -1043,10 +1264,13 @@ export default function Home() {
                         <input placeholder="Roll" value={roll} onChange={e=>setRoll(e.target.value)} style={{maxWidth:110}}/>
                       </div>
                       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(88px,1fr))",gap:8,marginBottom:14}}>
-                        {marks.map((m,i)=>(
-                          <input key={i} type="number" value={m} placeholder={`Sub ${i+1}`}
-                            onChange={e=>updateMark(i,e.target.value)} min={0} max={100}/>
-                        ))}
+                        {marks.map((m,i)=>{
+                          const subName = activeProject.subjectNames?.[i];
+                          return (
+                            <input key={i} type="number" value={m} placeholder={subName || `Sub ${i+1}`}
+                              onChange={e=>updateMark(i,e.target.value)} min={0} max={100}/>
+                          );
+                        })}
                       </div>
                       <Btn onClick={addStudent} loading={saving} style={{width:"100%"}}>+ Add Student</Btn>
                     </Card>
@@ -1081,10 +1305,16 @@ export default function Home() {
                             </Pill>
                           </div>
                         </div>
-                        <div style={{display:"flex",gap:10}}>
+                        <div style={{display:"flex",gap:10,marginBottom:14}}>
                           <StatTile label="GPA" value={viewStudent.gpa} color={gradeColor(viewStudent.grade)}/>
                           <StatTile label="Total" value={viewStudent.total}/>
                         </div>
+                        <Btn 
+                          onClick={() => downloadMarksheet(viewStudent, activeProject, showToast)}
+                          style={{width: "100%"}}
+                        >
+                          📋 Download Marksheet
+                        </Btn>
                       </Card>
                     )}
                   </>
@@ -1203,11 +1433,10 @@ export default function Home() {
                       </table>
                     </Card>
 
-                    {/* PDF download button at the bottom of merit page */}
                     <Btn
-                      onClick={()=>downloadPDF(activeProject,showToast)}
+                      onClick={()=>downloadMeritListPDF(activeProject,showToast)}
                       style={{width:"100%",padding:"14px",fontSize:15}}>
-                      ⬇ Download PDF Report
+                      ⬇ Download Merit List PDF
                     </Btn>
                   </>
                 )}
@@ -1217,8 +1446,7 @@ export default function Home() {
         )}
       </div>
 
-      {/* Dock — only shown when logged in */}
-      {fbReady && authReady && user && !fbError && (
+      {fbReady && authReady && user && !fbError && !isAccountBlocked && (
         <Dock page={page} go={go} isAdmin={isAdmin} onAdminOpen={()=>setShowAdmin(true)}/>
       )}
     </>
