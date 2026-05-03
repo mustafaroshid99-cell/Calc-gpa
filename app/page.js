@@ -12,7 +12,6 @@ const FIREBASE_CONFIG = {
   measurementId: "G-LMCWHSE517"
 };
 
-
 const ADMIN_EMAIL = "mustafaroshid99@gmail.com";
 
 // ─── GPA helpers ──────────────────────────────────────────────────────────────
@@ -70,6 +69,7 @@ const GlobalStyle = ({ dark }) => {
       background: var(--surface2); color: var(--text2);
       font-size: 11px; font-weight: 600; letter-spacing: 0.08em;
       text-transform: uppercase; padding: 10px 14px; text-align: left;
+      white-space: nowrap;
     }
     th:first-child { border-radius: 8px 0 0 8px; }
     th:last-child  { border-radius: 0 8px 8px 0; }
@@ -83,6 +83,7 @@ const GlobalStyle = ({ dark }) => {
     @keyframes pulse { 0%,100%{opacity:1;}50%{opacity:0.5;} }
     @keyframes spin { from{transform:rotate(0deg);}to{transform:rotate(360deg);} }
     @keyframes badgePop { 0%{transform:scale(0);}70%{transform:scale(1.2);}100%{transform:scale(1);} }
+    @keyframes slideDown { from{opacity:0;transform:translateY(-8px);}to{opacity:1;transform:translateY(0);} }
   `;
   return <style>{css}</style>;
 };
@@ -139,13 +140,24 @@ const Toast = ({ msg }) => (
   }}>{msg}</div>
 );
 
-const StatTile = ({ label, value, color, style={} }) => (
+const StatTile = ({ label, value, color, style={}, onClick, actionLabel }) => (
   <div style={{background:"var(--surface2)",border:"1.5px solid var(--border)",
     borderRadius:14,padding:"14px 18px",flex:1,...style}}>
     <div style={{fontSize:11,fontWeight:600,letterSpacing:"0.07em",textTransform:"uppercase",
       color:"var(--text2)",marginBottom:5}}>{label}</div>
-    <div style={{fontSize:26,fontWeight:800,color:color||"var(--accent)",fontVariantNumeric:"tabular-nums"}}>
-      {value}
+    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+      <div style={{fontSize:26,fontWeight:800,color:color||"var(--accent)",fontVariantNumeric:"tabular-nums"}}>
+        {value}
+      </div>
+      {onClick && (
+        <button onClick={onClick} style={{
+          padding:"4px 10px",borderRadius:8,border:"1.5px solid var(--border)",
+          background:"var(--surface)",color:"var(--text2)",fontSize:11,fontWeight:600,
+          cursor:"pointer",transition:"all 0.15s",
+        }}>
+          {actionLabel||"View"}
+        </button>
+      )}
     </div>
   </div>
 );
@@ -154,6 +166,57 @@ const Spinner = () => (
   <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"60vh"}}>
     <div style={{width:40,height:40,border:"3px solid var(--border)",
       borderTop:"3px solid var(--accent)",borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/>
+  </div>
+);
+
+// ─── Student List Modal ───────────────────────────────────────────────────────
+const StudentListModal = ({ title, students, color, onClose }) => (
+  <div style={{
+    position:"fixed",inset:0,zIndex:6000,background:"rgba(0,0,0,0.65)",
+    display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(4px)",
+    padding:"20px 16px",
+  }} onClick={e=>e.target===e.currentTarget&&onClose()}>
+    <div style={{
+      background:"var(--surface)",border:"1.5px solid var(--border)",
+      borderRadius:18,width:"100%",maxWidth:420,
+      maxHeight:"70vh",display:"flex",flexDirection:"column",
+      animation:"up 0.25s ease",
+    }}>
+      <div style={{padding:"18px 20px",borderBottom:"1.5px solid var(--border)",
+        display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <div>
+          <div style={{fontSize:11,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",
+            color,marginBottom:3}}>{title}</div>
+          <div style={{fontWeight:800,fontSize:18}}>{students.length} Student{students.length!==1?"s":""}</div>
+        </div>
+        <button onClick={onClose} style={{
+          width:34,height:34,borderRadius:"50%",border:"1.5px solid var(--border)",
+          background:"var(--surface2)",color:"var(--text2)",fontSize:18,
+          display:"flex",alignItems:"center",justifyContent:"center",
+        }}>×</button>
+      </div>
+      <div style={{flex:1,overflowY:"auto",padding:16}}>
+        {students.map((s,i)=>(
+          <div key={s.roll} style={{
+            display:"flex",alignItems:"center",gap:12,padding:"10px 14px",
+            borderRadius:10,marginBottom:6,
+            background:"var(--surface2)",border:"1.5px solid var(--border)",
+          }}>
+            <div style={{
+              width:32,height:32,borderRadius:"50%",flexShrink:0,
+              background:`color-mix(in srgb,${color} 20%,transparent)`,
+              display:"flex",alignItems:"center",justifyContent:"center",
+              fontSize:13,fontWeight:800,color,
+            }}>{i+1}</div>
+            <div style={{flex:1}}>
+              <div style={{fontWeight:700,fontSize:14}}>{s.name}</div>
+              <div style={{color:"var(--text2)",fontSize:12}}>Roll: {s.roll}</div>
+            </div>
+            <Pill color={color}>{s.grade}</Pill>
+          </div>
+        ))}
+      </div>
+    </div>
   </div>
 );
 
@@ -355,8 +418,9 @@ const AdminPanel = ({ firebase, showToast, onClose }) => {
   const [notifications, setNotifications] = useState([]);
   const [tab, setTab]                     = useState("notifs");
   const [loading, setLoading]             = useState(true);
-  const [selectedUserProjects, setSelectedUserProjects] = useState(null);
-  const [viewingProjects, setViewingProjects] = useState(false);
+  const [selectedUserData, setSelectedUserData] = useState(null);
+  const [viewingUser, setViewingUser] = useState(false);
+  const [selectedProject, setSelectedProject] = useState(null);
 
   useEffect(() => {
     const loadData = async () => {
@@ -391,60 +455,189 @@ const AdminPanel = ({ firebase, showToast, onClose }) => {
     showToast("✓ All marked as read");
   };
 
-  const loadUserProjects = async (user) => {
+  // Load FULL user data — all projects with all student details
+  const loadUserFullData = async (user) => {
     try {
       const snap = await firebase.db.collection("users").doc(user.id)
         .collection("projects").orderBy("createdAt","asc").get();
-      setSelectedUserProjects({ user, projects: snap.docs.map(d => ({ id: d.id, ...d.data() })) });
-      setViewingProjects(true);
+      const projects = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      setSelectedUserData({ user, projects });
+      setSelectedProject(projects.length > 0 ? projects[0] : null);
+      setViewingUser(true);
     } catch(e) { showToast("✗ " + e.message); }
   };
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
-  if (viewingProjects && selectedUserProjects) {
+  // ── Full User Data View ──────────────────────────────────────────────────
+  if (viewingUser && selectedUserData) {
+    const u = selectedUserData.user;
+    const projects = selectedUserData.projects;
+    const meritRanks = selectedProject ? getMeritRank(selectedProject.students) : {};
+    const sortedStudents = selectedProject
+      ? [...selectedProject.students].sort((a,b) =>
+          String(a.roll).localeCompare(String(b.roll), undefined, { numeric:true }))
+      : [];
+
+    const summaryStats = () => {
+      if (!selectedProject?.students.length) return {pass:0,fail:0,rate:"0.0",avg:"0.00",total:0};
+      const pass = selectedProject.students.filter(s=>s.status==="PASS").length;
+      const fail = selectedProject.students.length-pass;
+      const avg  = (selectedProject.students.reduce((a,s)=>a+s.gpa,0)/selectedProject.students.length).toFixed(2);
+      return {pass,fail,rate:((pass/selectedProject.students.length)*100).toFixed(1),avg,total:selectedProject.students.length};
+    };
+    const stats = summaryStats();
+
     return (
       <div style={{
         position:"fixed",inset:0,zIndex:5000,background:"rgba(0,0,0,0.7)",
         display:"flex",alignItems:"flex-end",justifyContent:"center",backdropFilter:"blur(4px)",
-      }} onClick={e=>e.target===e.currentTarget&&setViewingProjects(false)}>
+      }} onClick={e=>e.target===e.currentTarget&&setViewingUser(false)}>
         <div style={{
           background:"var(--surface)",border:"1.5px solid var(--border)",
           borderRadius:"22px 22px 0 0",width:"100%",maxWidth:600,
-          maxHeight:"85vh",display:"flex",flexDirection:"column",
+          maxHeight:"92vh",display:"flex",flexDirection:"column",
           animation:"up 0.3s ease",
         }}>
-          <div style={{padding:"20px 22px 0",borderBottom:"1.5px solid var(--border)"}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+          {/* Header */}
+          <div style={{padding:"18px 20px 0",borderBottom:"1.5px solid var(--border)"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
               <div>
                 <div style={{fontSize:11,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",
-                  color:"var(--accent)",marginBottom:4}}>📊 User Data</div>
-                <h2 style={{fontWeight:800,fontSize:20}}>{selectedUserProjects.user.name}</h2>
+                  color:"var(--accent)",marginBottom:3}}>👤 Viewing As</div>
+                <h2 style={{fontWeight:800,fontSize:20}}>{u.name}</h2>
+                <div style={{color:"var(--text2)",fontSize:12}}>{u.email}</div>
               </div>
-              <button onClick={()=>setViewingProjects(false)} style={{
+              <button onClick={()=>setViewingUser(false)} style={{
                 width:36,height:36,borderRadius:"50%",border:"1.5px solid var(--border)",
                 background:"var(--surface2)",color:"var(--text2)",fontSize:18,
                 display:"flex",alignItems:"center",justifyContent:"center",
               }}>×</button>
             </div>
+
+            {/* Project tabs */}
+            {projects.length > 0 && (
+              <div style={{display:"flex",gap:6,overflowX:"auto",paddingBottom:12,
+                msOverflowStyle:"none",scrollbarWidth:"none"}}>
+                {projects.map(p=>(
+                  <button key={p.id} onClick={()=>setSelectedProject(p)} style={{
+                    padding:"7px 14px",borderRadius:10,border:"1.5px solid var(--border)",
+                    background:selectedProject?.id===p.id?"linear-gradient(135deg,var(--accent),var(--accent2))":"var(--surface2)",
+                    color:selectedProject?.id===p.id?"#fff":"var(--text2)",
+                    fontSize:12,fontWeight:600,whiteSpace:"nowrap",flexShrink:0,
+                  }}>{p.examName}</button>
+                ))}
+              </div>
+            )}
           </div>
 
-          <div style={{flex:1,overflowY:"auto",padding:20}}>
-            {selectedUserProjects.projects.length === 0 ? (
+          <div style={{flex:1,overflowY:"auto",padding:18}}>
+            {projects.length === 0 ? (
               <div style={{textAlign:"center",color:"var(--text2)",padding:"40px 0",fontSize:14}}>
                 No projects yet
               </div>
-            ) : selectedUserProjects.projects.map(p => (
-              <div key={p.id} style={{
-                background:"var(--surface2)",border:"1.5px solid var(--border)",
-                borderRadius:12,padding:"14px",marginBottom:10,
-              }}>
-                <div style={{fontWeight:700,fontSize:15,marginBottom:6}}>{p.examName}</div>
-                <div style={{color:"var(--text2)",fontSize:12}}>
-                  {p.students?.length || 0} student{p.students?.length !== 1?"s":""} · {p.subjectCount} subject{p.subjectCount!==1?"s":""}
+            ) : !selectedProject ? null : (
+              <>
+                {/* Stats row */}
+                <div style={{display:"flex",gap:8,marginBottom:10}}>
+                  <div style={{background:"var(--surface2)",border:"1.5px solid var(--border)",
+                    borderRadius:12,padding:"12px 14px",flex:1,textAlign:"center"}}>
+                    <div style={{fontSize:10,fontWeight:700,letterSpacing:"0.07em",textTransform:"uppercase",
+                      color:"var(--text2)",marginBottom:3}}>Students</div>
+                    <div style={{fontSize:22,fontWeight:800,color:"var(--accent)"}}>{selectedProject.students.length}</div>
+                  </div>
+                  <div style={{background:"var(--surface2)",border:"1.5px solid var(--border)",
+                    borderRadius:12,padding:"12px 14px",flex:1,textAlign:"center"}}>
+                    <div style={{fontSize:10,fontWeight:700,letterSpacing:"0.07em",textTransform:"uppercase",
+                      color:"var(--text2)",marginBottom:3}}>Pass Rate</div>
+                    <div style={{fontSize:22,fontWeight:800,color:"var(--green)"}}>{stats.rate}%</div>
+                  </div>
+                  <div style={{background:"var(--surface2)",border:"1.5px solid var(--border)",
+                    borderRadius:12,padding:"12px 14px",flex:1,textAlign:"center"}}>
+                    <div style={{fontSize:10,fontWeight:700,letterSpacing:"0.07em",textTransform:"uppercase",
+                      color:"var(--text2)",marginBottom:3}}>Avg GPA</div>
+                    <div style={{fontSize:22,fontWeight:800,color:"var(--accent2)"}}>{stats.avg}</div>
+                  </div>
                 </div>
-              </div>
-            ))}
+
+                {/* Student table */}
+                {sortedStudents.length === 0 ? (
+                  <div style={{textAlign:"center",color:"var(--text2)",padding:"30px 0",fontSize:14}}>
+                    No students in this project
+                  </div>
+                ) : (
+                  <div style={{background:"var(--surface)",border:"1.5px solid var(--border)",
+                    borderRadius:12,overflow:"hidden"}}>
+                    <div style={{overflowX:"auto"}}>
+                      <table>
+                        <thead>
+                          <tr>
+                            <th style={{paddingLeft:14}}>Name</th>
+                            <th>Roll</th>
+                            <th>Merit</th>
+                            <th>GPA</th>
+                            <th>Grade</th>
+                            <th>Total</th>
+                            <th>Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {sortedStudents.map(s => {
+                            const rank = meritRanks[s.roll];
+                            const rankColor = rank===1?"#f59e0b":rank===2?"#94a3b8":rank===3?"#cd7c2f":null;
+                            return (
+                              <tr key={s.roll}>
+                                <td style={{fontWeight:600,paddingLeft:14}}>{s.name}</td>
+                                <td style={{fontFamily:"'JetBrains Mono',monospace",color:"var(--text2)",fontSize:13}}>
+                                  {s.roll}
+                                </td>
+                                <td>
+                                  {rankColor ? (
+                                    <span style={{
+                                      display:"inline-flex",alignItems:"center",justifyContent:"center",
+                                      width:24,height:24,borderRadius:"50%",fontSize:11,fontWeight:800,
+                                      background:rankColor,color:"#fff",
+                                    }}>{rank}</span>
+                                  ) : (
+                                    <span style={{color:"var(--text2)",fontSize:12,
+                                      fontFamily:"'JetBrains Mono',monospace"}}>#{rank}</span>
+                                  )}
+                                </td>
+                                <td style={{fontWeight:700,color:gradeColor(s.grade),
+                                  fontFamily:"'JetBrains Mono',monospace"}}>{s.gpa}</td>
+                                <td><Pill color={gradeColor(s.grade)}>{s.grade}</Pill></td>
+                                <td style={{fontFamily:"'JetBrains Mono',monospace"}}>{s.total}</td>
+                                <td>
+                                  <Pill color={s.status==="PASS"?"var(--green)":"var(--red)"}>
+                                    {s.status}
+                                  </Pill>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Subject marks expandable per student */}
+                    {selectedProject.subjectNames && selectedProject.subjectNames.length > 0 && (
+                      <div style={{padding:"12px 14px",borderTop:"1.5px solid var(--border)"}}>
+                        <div style={{fontSize:11,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",
+                          color:"var(--text2)",marginBottom:8}}>Subjects</div>
+                        <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+                          {selectedProject.subjectNames.map((n,i)=>(
+                            <span key={i} style={{
+                              padding:"3px 10px",borderRadius:8,fontSize:12,fontWeight:600,
+                              background:"var(--surface2)",border:"1.5px solid var(--border)",color:"var(--text2)",
+                            }}>{n}</span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -591,9 +784,9 @@ const AdminPanel = ({ firebase, showToast, onClose }) => {
                       )}
                       <Btn
                         variant="secondary"
-                        onClick={() => loadUserProjects(u)}
+                        onClick={() => loadUserFullData(u)}
                         style={{padding:"7px 12px",fontSize:12,whiteSpace:"nowrap",flexShrink:0}}>
-                        📊 Data
+                        📊 View Data
                       </Btn>
                     </div>
                   </div>
@@ -653,6 +846,8 @@ const Dock = ({ page, go, isAdmin, onAdminOpen }) => {
 };
 
 // ─── PDF Generators ───────────────────────────────────────────────────────────
+
+// MARKSHEET PDF — Deep Purple / Indigo theme
 const downloadMarksheet = async (student, project, showToast) => {
   if (!student) return showToast("⚠ No student selected");
   showToast("⏳ Generating marksheet…");
@@ -674,46 +869,67 @@ const downloadMarksheet = async (student, project, showToast) => {
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
 
-  // Header
+  // ── Header banner (deep indigo/purple) ──────────────────────────────────
+  doc.setFillColor(67, 56, 202);        // indigo-700
+  doc.rect(0, 0, pageWidth, 38, "F");
+
+  doc.setFillColor(99, 102, 241);       // indigo-500 accent strip
+  doc.rect(0, 36, pageWidth, 3, "F");
+
   doc.setFont("helvetica","bold");
-  doc.setFontSize(18);
-  doc.setTextColor(6, 182, 212);
-  doc.text("EduGrade", 15, 15);
-  
+  doc.setFontSize(22);
+  doc.setTextColor(255, 255, 255);
+  doc.text("EduGrade", 15, 16);
+
   doc.setFont("helvetica","normal");
   doc.setFontSize(10);
-  doc.setTextColor(80, 80, 80);
-  doc.text("Student Marksheet", 15, 22);
-
-  // Exam info
-  doc.setFontSize(11);
-  doc.setTextColor(30, 30, 30);
-  doc.setFont("helvetica","bold");
-  doc.text("Exam:", 15, 32);
-  doc.setFont("helvetica","normal");
-  doc.text(project.examName, 45, 32);
-
-  // Student info box
-  doc.setDrawColor(6, 182, 212);
-  doc.setLineWidth(0.5);
-  doc.rect(15, 40, pageWidth - 30, 35);
+  doc.setTextColor(199, 210, 254);      // indigo-200
+  doc.text("Student Marksheet", 15, 25);
 
   doc.setFont("helvetica","bold");
   doc.setFontSize(10);
-  doc.setTextColor(6, 182, 212);
-  doc.text("STUDENT INFORMATION", 18, 45);
+  doc.setTextColor(255,255,255);
+  doc.text(`Exam:  ${project.examName}`, 15, 33);
 
-  doc.setFont("helvetica","normal");
+  // ── STUDENT INFORMATION box ──────────────────────────────────────────────
+  const boxY = 46;
+  doc.setDrawColor(99, 102, 241);
+  doc.setLineWidth(0.6);
+  doc.roundedRect(15, boxY, pageWidth - 30, 34, 3, 3);
+
+  // Header row of the box
+  doc.setFillColor(99, 102, 241);
+  doc.roundedRect(15, boxY, pageWidth - 30, 10, 3, 3, "F");
+  doc.rect(15, boxY + 5, pageWidth - 30, 5, "F"); // fill bottom corners
+
+  doc.setFont("helvetica","bold");
   doc.setFontSize(9);
-  doc.setTextColor(30, 30, 30);
-  doc.text(`Name: ${student.name}`, 18, 52);
-  doc.text(`Roll No.: ${student.roll}`, 18, 59);
-  doc.text(`Total Marks: ${student.total}/${project.subjectCount * 100}`, 18, 66);
-  doc.text(`GPA: ${student.gpa}`, 100, 52);
-  doc.text(`Grade: ${student.grade}`, 100, 59);
-  doc.text(`Status: ${student.status}`, 100, 66);
+  doc.setTextColor(255,255,255);
+  doc.text("STUDENT INFORMATION", 20, boxY + 7);
 
-  // Subject marks table
+  // Left column
+  doc.setFont("helvetica","normal");
+  doc.setFontSize(9.5);
+  doc.setTextColor(30, 30, 30);
+  const rowY1 = boxY + 17;
+  const rowY2 = boxY + 25;
+  doc.setFont("helvetica","bold");
+  doc.text("Name:", 20, rowY1);
+  doc.text("Roll No.:", 20, rowY2);
+  doc.setFont("helvetica","normal");
+  doc.text(student.name, 42, rowY1);
+  doc.text(student.roll, 42, rowY2);
+
+  // Right column
+  const midX = pageWidth / 2 + 5;
+  doc.setFont("helvetica","bold");
+  doc.text("GPA:", midX, rowY1);
+  doc.text("Grade:", midX, rowY2);
+  doc.setFont("helvetica","normal");
+  doc.text(String(student.gpa), midX + 18, rowY1);
+  doc.text(student.grade, midX + 22, rowY2);
+
+  // ── Subject marks table ──────────────────────────────────────────────────
   const subjectNames = project.subjectNames || Array.from({length: project.subjectCount}, (_, i) => `Subject ${i + 1}`);
   const head = [["S.No", "Subject", "Marks Obtained", "Out of 100"]];
   const body = (student.subjectMarks || []).map((mark, i) => [
@@ -726,56 +942,82 @@ const downloadMarksheet = async (student, project, showToast) => {
   doc.autoTable({
     head,
     body,
-    startY: 80,
+    startY: boxY + 40,
     styles: { font: "helvetica", fontSize: 9, cellPadding: 4 },
-    headStyles: { fillColor: [6, 182, 212], textColor: [255, 255, 255], fontStyle: "bold" },
-    alternateRowStyles: { fillColor: [240, 248, 255] },
+    headStyles: { fillColor: [67, 56, 202], textColor: [255,255,255], fontStyle: "bold" },
+    alternateRowStyles: { fillColor: [238, 242, 255] },   // indigo-50
     columnStyles: {
       0: { halign: "center", cellWidth: 15 },
-      2: { halign: "center", cellWidth: 30 },
-      3: { halign: "center", cellWidth: 25 }
+      2: { halign: "center", cellWidth: 32 },
+      3: { halign: "center", cellWidth: 26 }
     },
     didParseCell: (data) => {
       if (data.section === "body" && data.column.index === 2) {
         const mark = parseInt(data.cell.raw);
-        if (mark >= 80) {
-          data.cell.styles.textColor = [16, 185, 129];
-          data.cell.styles.fontStyle = "bold";
-        } else if (mark < 33) {
-          data.cell.styles.textColor = [239, 68, 68];
-          data.cell.styles.fontStyle = "bold";
-        }
+        if (mark >= 80)      { data.cell.styles.textColor = [16,185,129]; data.cell.styles.fontStyle = "bold"; }
+        else if (mark < 33)  { data.cell.styles.textColor = [239,68,68];  data.cell.styles.fontStyle = "bold"; }
       }
     },
     margin: { left: 15, right: 15 }
   });
 
-  // Result summary
-  const finalY = doc.lastAutoTable.finalY + 15;
+  // ── RESULT SUMMARY box ───────────────────────────────────────────────────
+  const finalY = doc.lastAutoTable.finalY + 12;
+  doc.setFillColor(67, 56, 202);
+  doc.roundedRect(15, finalY, pageWidth - 30, 9, 2, 2, "F");
+  doc.rect(15, finalY + 4, pageWidth - 30, 5, "F");
+
   doc.setFont("helvetica","bold");
-  doc.setFontSize(11);
-  doc.setTextColor(6, 182, 212);
-  doc.text("RESULT SUMMARY", 15, finalY);
+  doc.setFontSize(9);
+  doc.setTextColor(255,255,255);
+  doc.text("RESULT SUMMARY", 20, finalY + 6.5);
+
+  // Merit rank
+  const meritRanks = getMeritRank(project.students);
+  const myRank = meritRanks[student.roll] || "—";
 
   doc.setFont("helvetica","normal");
-  doc.setFontSize(9);
-  doc.setTextColor(30, 30, 30);
-  const summaryY = finalY + 8;
-  doc.text(`Average Marks: ${(student.total / project.subjectCount).toFixed(2)}`, 15, summaryY);
-  doc.text(`Percentage: ${((student.total / (project.subjectCount * 100)) * 100).toFixed(2)}%`, 15, summaryY + 7);
-  doc.text(`Grade: ${student.grade}`, 15, summaryY + 14);
-  doc.text(`Status: ${student.status === 'PASS' ? '✓ PASS' : '✗ FAIL'}`, 15, summaryY + 21);
+  doc.setFontSize(9.5);
+  doc.setTextColor(30,30,30);
+  const sy = finalY + 16;
+  const col2 = pageWidth / 2 + 5;
 
-  // Footer
-  doc.setFontSize(8);
-  doc.setTextColor(150, 150, 150);
-  doc.text("This is an automatically generated marksheet from EduGrade", 15, pageHeight - 10);
-  doc.text(`Generated: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`, 15, pageHeight - 5);
+  doc.setFont("helvetica","bold"); doc.text("Total Marks:", 20, sy);
+  doc.setFont("helvetica","normal"); doc.text(`${student.total} / ${project.subjectCount * 100}`, 55, sy);
 
-  doc.save(`${student.name}_Marksheet_${project.examName.replace(/\s+/g, "_")}.pdf`);
+  doc.setFont("helvetica","bold"); doc.text("GPA:", col2, sy);
+  doc.setFont("helvetica","normal"); doc.text(String(student.gpa), col2 + 18, sy);
+
+  doc.setFont("helvetica","bold"); doc.text("Grade:", 20, sy+8);
+  doc.setFont("helvetica","normal"); doc.text(student.grade, 40, sy+8);
+
+  doc.setFont("helvetica","bold"); doc.text("Percentage:", col2, sy+8);
+  doc.setFont("helvetica","normal");
+  doc.text(`${((student.total/(project.subjectCount*100))*100).toFixed(2)}%`, col2+32, sy+8);
+
+  doc.setFont("helvetica","bold"); doc.text("Merit Rank:", 20, sy+16);
+  doc.setFont("helvetica","normal"); doc.text(`#${myRank}`, 50, sy+16);
+
+  doc.setFont("helvetica","bold"); doc.text("Status:", col2, sy+16);
+  const statusColor = student.status === "PASS" ? [16,185,129] : [239,68,68];
+  doc.setTextColor(...statusColor);
+  doc.setFont("helvetica","bold");
+  doc.text(student.status, col2+22, sy+16);
+
+  // ── Footer ───────────────────────────────────────────────────────────────
+  doc.setFillColor(67, 56, 202);
+  doc.rect(0, pageHeight - 14, pageWidth, 14, "F");
+  doc.setFont("helvetica","normal");
+  doc.setFontSize(7.5);
+  doc.setTextColor(199,210,254);
+  doc.text("This is an automatically generated marksheet from EduGrade", 15, pageHeight - 6);
+  doc.text(`Generated: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`, pageWidth - 15, pageHeight - 6, { align:"right" });
+
+  doc.save(`${student.name}_Marksheet_${project.examName.replace(/\s+/g,"_")}.pdf`);
   showToast("✓ Marksheet downloaded!");
 };
 
+// MERIT LIST PDF — Emerald / Teal theme
 const downloadMeritListPDF = async (project, showToast) => {
   if (!project?.students.length) return showToast("⚠ No students to export");
   showToast("⏳ Generating Merit List PDF…");
@@ -793,82 +1035,108 @@ const downloadMeritListPDF = async (project, showToast) => {
   } catch { return showToast("✗ Could not load PDF library"); }
 
   const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+  const doc = new jsPDF({ orientation:"portrait", unit:"mm", format:"a4" });
+  const pageWidth  = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
 
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(16);
-  doc.setTextColor(6, 182, 212);
-  doc.text("Merit List", 15, 15);
+  // ── Header banner (emerald) ──────────────────────────────────────────────
+  doc.setFillColor(4, 120, 87);         // emerald-700
+  doc.rect(0, 0, pageWidth, 38, "F");
 
-  doc.setFont("helvetica", "normal");
+  doc.setFillColor(16, 185, 129);       // emerald-500 accent
+  doc.rect(0, 36, pageWidth, 3, "F");
+
+  doc.setFont("helvetica","bold");
+  doc.setFontSize(22);
+  doc.setTextColor(255,255,255);
+  doc.text("EduGrade", 15, 16);
+
+  doc.setFont("helvetica","normal");
   doc.setFontSize(10);
-  doc.setTextColor(100, 100, 100);
-  doc.text(`Exam: ${project.examName}`, 15, 22);
-  doc.text(`Total Students: ${project.students.length} | Date: ${new Date().toLocaleDateString()}`, 15, 28);
+  doc.setTextColor(167, 243, 208);      // emerald-200
+  doc.text("Merit List", 15, 25);
 
+  doc.setFont("helvetica","normal");
+  doc.setFontSize(9.5);
+  doc.setTextColor(255,255,255);
+  doc.text(`Exam: ${project.examName}   |   Students: ${project.students.length}   |   ${new Date().toLocaleDateString()}`, 15, 33);
+
+  // ── Table ────────────────────────────────────────────────────────────────
   const sortedByRoll = [...project.students].sort((a,b) =>
     String(a.roll).localeCompare(String(b.roll), undefined, { numeric:true })
   );
   const meritRanks = getMeritRank(project.students);
 
-  const head = [["Rank", "Name", "Roll", "GPA", "Grade", "Total", "Status"]];
-  const body = sortedByRoll.map((s) => [
-    meritRanks[s.roll],
+  // Compute per-student percentage
+  const head = [["Rank", "Name", "Roll", "Total", "GPA", "Grade", "%", "Status"]];
+  const body = sortedByRoll.map(s => [
+    `#${meritRanks[s.roll]}`,
     s.name,
     s.roll,
+    s.total,
     s.gpa,
     s.grade,
-    s.total,
+    `${((s.total/(project.subjectCount*100))*100).toFixed(1)}%`,
     s.status
   ]);
 
   doc.autoTable({
-    head, body, startY: 35,
-    styles: { font: "helvetica", fontSize: 9, cellPadding: 4 },
-    headStyles: { fillColor: [6, 182, 212], textColor: [255, 255, 255], fontStyle: "bold" },
-    alternateRowStyles: { fillColor: [240, 248, 255] },
+    head, body,
+    startY: 44,
+    styles: { font: "helvetica", fontSize: 8.5, cellPadding: 3.5 },
+    headStyles: { fillColor: [4,120,87], textColor:[255,255,255], fontStyle:"bold", fontSize:8 },
+    alternateRowStyles: { fillColor:[236,253,245] },   // emerald-50
     columnStyles: {
-      0: { halign: "center", cellWidth: 15 },
-      3: { halign: "center", cellWidth: 18 },
-      4: { halign: "center", cellWidth: 16 },
-      5: { halign: "center", cellWidth: 18 },
-      6: { halign: "center", cellWidth: 18 }
+      0: { halign:"center", cellWidth:14 },
+      2: { halign:"center", cellWidth:16 },
+      3: { halign:"center", cellWidth:17 },
+      4: { halign:"center", cellWidth:13 },
+      5: { halign:"center", cellWidth:15 },
+      6: { halign:"center", cellWidth:16 },
+      7: { halign:"center", cellWidth:16 },
     },
     didParseCell: (data) => {
       if (data.section === "body") {
-        if (data.column.index === 6) {
-          const status = data.cell.raw;
-          data.cell.styles.textColor = status === "PASS" ? [16, 185, 129] : [239, 68, 68];
+        // Rank — gold/silver/bronze
+        if (data.column.index === 0) {
+          const raw = data.cell.raw;
+          if (raw === "#1") { data.cell.styles.textColor=[180,120,0]; data.cell.styles.fontStyle="bold"; }
+          else if (raw === "#2") { data.cell.styles.textColor=[100,116,139]; data.cell.styles.fontStyle="bold"; }
+          else if (raw === "#3") { data.cell.styles.textColor=[160,80,30]; data.cell.styles.fontStyle="bold"; }
+        }
+        // Status
+        if (data.column.index === 7) {
+          data.cell.styles.textColor = data.cell.raw === "PASS" ? [4,120,87] : [220,38,38];
           data.cell.styles.fontStyle = "bold";
         }
-        if (data.column.index === 4) {
-          const grade = data.cell.raw;
+        // Grade
+        if (data.column.index === 5) {
           const colorMap = {
-            "A+": [16, 185, 129],
-            "A": [20, 184, 166],
-            "A-": [6, 182, 212],
-            "B": [59, 130, 246],
-            "C": [245, 158, 11],
-            "D": [251, 146, 60],
-            "F": [239, 68, 68]
+            "A+":[16,185,129],"A":[20,184,166],"A-":[6,182,212],
+            "B":[59,130,246],"C":[245,158,11],"D":[251,146,60],"F":[239,68,68]
           };
-          data.cell.styles.textColor = colorMap[grade] || [30, 30, 30];
+          data.cell.styles.textColor = colorMap[data.cell.raw] || [30,30,30];
           data.cell.styles.fontStyle = "bold";
         }
       }
     },
-    margin: { left: 12, right: 12 }
+    margin: { left:12, right:12 }
   });
 
+  // ── Footer ───────────────────────────────────────────────────────────────
   const pageCount = doc.internal.getNumberOfPages();
-  for (let i = 1; i <= pageCount; i++) {
+  for (let i=1; i<=pageCount; i++) {
     doc.setPage(i);
-    doc.setFontSize(8);
-    doc.setTextColor(150, 150, 150);
-    doc.text(`Page ${i} of ${pageCount}`, doc.internal.pageSize.getWidth() - 20, doc.internal.pageSize.getHeight() - 8, { align: "right" });
+    doc.setFillColor(4,120,87);
+    doc.rect(0, pageHeight-14, pageWidth, 14, "F");
+    doc.setFont("helvetica","normal");
+    doc.setFontSize(7.5);
+    doc.setTextColor(167,243,208);
+    doc.text("EduGrade — Automatically generated merit list", 15, pageHeight-6);
+    doc.text(`Page ${i} of ${pageCount}`, pageWidth-15, pageHeight-6, { align:"right" });
   }
 
-  doc.save(`${project.examName.replace(/\s+/g, "_")}_Merit_List.pdf`);
+  doc.save(`${project.examName.replace(/\s+/g,"_")}_Merit_List.pdf`);
   showToast("✓ Merit List PDF downloaded!");
 };
 
@@ -935,6 +1203,9 @@ export default function Home() {
   const [searchRoll,   setSearchRoll]   = useState("");
   const [saving,       setSaving]       = useState(false);
 
+  // Summary modal state
+  const [studentModal, setStudentModal] = useState(null); // {title, students, color}
+
   const showToast = useCallback((msg) => {
     setToast(msg); setTimeout(() => setToast(""), 2400);
   }, []);
@@ -987,12 +1258,12 @@ export default function Home() {
     setSaving(true);
     try {
       const names = showSubjectInput ? subjectNames.filter(s => s.trim()) : [];
-      const np = { 
-        examName:examName.trim(), 
-        subjectCount:n, 
-        students:[], 
+      const np = {
+        examName:examName.trim(),
+        subjectCount:n,
+        students:[],
         subjectNames: names.length > 0 ? names : undefined,
-        createdAt:new Date().toISOString() 
+        createdAt:new Date().toISOString()
       };
       const docRef = await firebase.db.collection("users").doc(user.uid).collection("projects").add(np);
       const newP = { ...np, id:docRef.id };
@@ -1000,10 +1271,7 @@ export default function Home() {
       setProjects(updated);
       setActiveProjectIndex(updated.length-1);
       setMarks(Array(n).fill(""));
-      setExamName(""); 
-      setSubjectCount("");
-      setSubjectNames([]);
-      setShowSubjectInput(false);
+      setExamName(""); setSubjectCount(""); setSubjectNames([]); setShowSubjectInput(false);
       go("app");
       showToast("✓ Project created");
     } catch(e) { showToast("✗ " + e.message); }
@@ -1070,7 +1338,7 @@ export default function Home() {
 
   const signOut = async () => {
     await firebase.auth.signOut();
-    setProjects([]); 
+    setProjects([]);
     setActiveProjectIndex(null);
     setIsAccountBlocked(false);
     go("home");
@@ -1083,6 +1351,13 @@ export default function Home() {
         String(a.roll).localeCompare(String(b.roll), undefined, { numeric:true }))
     : [];
 
+  // Top 3 by merit
+  const top3 = activeProject
+    ? [...activeProject.students]
+        .sort((a,b) => b.gpa - a.gpa || b.total - a.total)
+        .slice(0, 3)
+    : [];
+
   const summaryStats = () => {
     if (!activeProject?.students.length) return {pass:0,fail:0,rate:"0.0",avg:"0.00",total:0};
     const pass = activeProject.students.filter(s=>s.status==="PASS").length;
@@ -1091,6 +1366,9 @@ export default function Home() {
     return {pass,fail,rate:((pass/activeProject.students.length)*100).toFixed(1),avg,total:activeProject.students.length};
   };
 
+  const medalColors = ["#f59e0b","#94a3b8","#cd7c2f"];
+  const medals      = ["🥇","🥈","🥉"];
+
   return (
     <>
       <GlobalStyle dark={dark}/>
@@ -1098,11 +1376,18 @@ export default function Home() {
       {splash && <LogoSplash onDone={()=>setSplash(false)}/>}
       {isAccountBlocked && <BlockedModal onSignOut={signOut} />}
       {showAdmin && firebase && <AdminPanel firebase={firebase} showToast={showToast} onClose={()=>setShowAdmin(false)}/>}
+      {studentModal && (
+        <StudentListModal
+          title={studentModal.title}
+          students={studentModal.students}
+          color={studentModal.color}
+          onClose={()=>setStudentModal(null)}
+        />
+      )}
 
       <div style={{
         maxWidth:540,margin:"0 auto",
-        paddingTop:20,
-        paddingLeft:14,paddingRight:14,paddingBottom:110,
+        paddingTop:20,paddingLeft:14,paddingRight:14,paddingBottom:110,
         opacity:anim?0:1,transform:anim?"translateY(12px)":"translateY(0)",
         transition:"opacity 0.19s, transform 0.19s",
       }}>
@@ -1195,30 +1480,27 @@ export default function Home() {
                   <div>
                     <Label>Number of Subjects</Label>
                     <input type="number" placeholder="e.g. 6" value={subjectCount}
-                      onChange={e=>{setSubjectCount(e.target.value); const n = Number(e.target.value); setSubjectNames(Array(n).fill(""));}}
+                      onChange={e=>{setSubjectCount(e.target.value); const n=Number(e.target.value); setSubjectNames(Array(n).fill(""));}}
                       min={1} max={20}/>
                   </div>
                   <div>
-                    <Label style={{marginBottom: 10}}>
-                      <input type="checkbox" checked={showSubjectInput} 
-                        onChange={(e)=>setShowSubjectInput(e.target.checked)} 
-                        style={{marginRight: 8, cursor: "pointer"}}/>
+                    <label style={{
+                      display:"flex",alignItems:"center",gap:8,
+                      fontSize:11,fontWeight:600,letterSpacing:"0.08em",textTransform:"uppercase",
+                      color:"var(--text2)",cursor:"pointer",marginBottom:7,
+                    }}>
+                      <input type="checkbox" checked={showSubjectInput}
+                        onChange={e=>setShowSubjectInput(e.target.checked)}
+                        style={{width:"auto",cursor:"pointer"}}/>
                       Add Subject Names (Optional)
-                    </Label>
+                    </label>
                     {showSubjectInput && subjectCount && (
                       <div style={{display:"flex",flexDirection:"column",gap:8}}>
-                        {Array(Number(subjectCount)).fill(null).map((_, i) => (
-                          <input
-                            key={i}
-                            type="text"
-                            placeholder={`Subject ${i + 1}`}
-                            value={subjectNames[i] || ""}
-                            onChange={(e) => {
-                              const updated = [...subjectNames];
-                              updated[i] = e.target.value;
-                              setSubjectNames(updated);
-                            }}
-                          />
+                        {Array(Number(subjectCount)).fill(null).map((_,i)=>(
+                          <input key={i} type="text"
+                            placeholder={`Subject ${i+1}`}
+                            value={subjectNames[i]||""}
+                            onChange={e=>{const u=[...subjectNames];u[i]=e.target.value;setSubjectNames(u);}}/>
                         ))}
                       </div>
                     )}
@@ -1267,7 +1549,7 @@ export default function Home() {
                         {marks.map((m,i)=>{
                           const subName = activeProject.subjectNames?.[i];
                           return (
-                            <input key={i} type="number" value={m} placeholder={subName || `Sub ${i+1}`}
+                            <input key={i} type="number" value={m} placeholder={subName||`Sub ${i+1}`}
                               onChange={e=>updateMark(i,e.target.value)} min={0} max={100}/>
                           );
                         })}
@@ -1309,10 +1591,9 @@ export default function Home() {
                           <StatTile label="GPA" value={viewStudent.gpa} color={gradeColor(viewStudent.grade)}/>
                           <StatTile label="Total" value={viewStudent.total}/>
                         </div>
-                        <Btn 
-                          onClick={() => downloadMarksheet(viewStudent, activeProject, showToast)}
-                          style={{width: "100%"}}
-                        >
+                        <Btn
+                          onClick={()=>downloadMarksheet(viewStudent, activeProject, showToast)}
+                          style={{width:"100%"}}>
                           📋 Download Marksheet
                         </Btn>
                       </Card>
@@ -1340,22 +1621,55 @@ export default function Home() {
                         <StatTile label="Pass Rate" value={`${s.rate}%`} color="var(--green)"/>
                       </div>
                       <div style={{display:"flex",gap:10,marginBottom:14}}>
-                        <StatTile label="Passed" value={s.pass} color="var(--green)"/>
-                        <StatTile label="Failed"  value={s.fail}  color="var(--red)"/>
+                        <StatTile
+                          label="Passed" value={s.pass} color="var(--green)"
+                          onClick={()=>setStudentModal({
+                            title:"Passed Students",
+                            students:activeProject.students.filter(st=>st.status==="PASS"),
+                            color:"var(--green)",
+                          })}
+                          actionLabel="View"
+                        />
+                        <StatTile
+                          label="Failed" value={s.fail} color="var(--red)"
+                          onClick={()=>setStudentModal({
+                            title:"Failed Students",
+                            students:activeProject.students.filter(st=>st.status==="FAIL"),
+                            color:"var(--red)",
+                          })}
+                          actionLabel="View"
+                        />
                       </div>
                       <StatTile label="Average GPA" value={s.avg} style={{display:"block",marginBottom:14}}/>
                       <Card>
                         <div style={{fontWeight:700,fontSize:15,marginBottom:14}}>Grade Distribution</div>
                         {["A+","A","A-","B","C","D","F"].map(g=>{
-                          const count=activeProject.students.filter(x=>x.grade===g).length;
-                          const pct=((count/activeProject.students.length)*100).toFixed(0);
+                          const gstuds = activeProject.students.filter(x=>x.grade===g);
+                          const count  = gstuds.length;
+                          const pct    = ((count/activeProject.students.length)*100).toFixed(0);
                           return (
                             <div key={g} style={{marginBottom:11}}>
-                              <div style={{display:"flex",justifyContent:"space-between",fontSize:13,marginBottom:4}}>
+                              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:13,marginBottom:4}}>
                                 <span style={{fontWeight:700,color:gradeColor(g)}}>{g}</span>
-                                <span style={{color:"var(--text2)",fontVariantNumeric:"tabular-nums"}}>
-                                  {count} ({pct}%)
-                                </span>
+                                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                                  <span style={{color:"var(--text2)",fontVariantNumeric:"tabular-nums"}}>
+                                    {count} ({pct}%)
+                                  </span>
+                                  {count > 0 && (
+                                    <button
+                                      onClick={()=>setStudentModal({
+                                        title:`Grade ${g} Students`,
+                                        students:gstuds,
+                                        color:gradeColor(g),
+                                      })}
+                                      style={{
+                                        padding:"2px 9px",borderRadius:7,
+                                        border:`1.5px solid color-mix(in srgb,${gradeColor(g)} 30%,transparent)`,
+                                        background:`color-mix(in srgb,${gradeColor(g)} 8%,transparent)`,
+                                        color:gradeColor(g),fontSize:10,fontWeight:700,cursor:"pointer",
+                                      }}>View</button>
+                                  )}
+                                </div>
                               </div>
                               <div style={{height:6,borderRadius:4,background:"var(--border)"}}>
                                 <div style={{height:6,borderRadius:4,width:`${pct}%`,
@@ -1385,6 +1699,50 @@ export default function Home() {
                   <Card><p style={{color:"var(--text2)",textAlign:"center"}}>No students to display.</p></Card>
                 ) : (
                   <>
+                    {/* ── Top 3 Podium (page only, not in PDF) ── */}
+                    {top3.length > 0 && (
+                      <div style={{marginBottom:20}}>
+                        <div style={{fontSize:11,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",
+                          color:"var(--text2)",marginBottom:10}}>🏆 Top Performers</div>
+                        <div style={{display:"flex",gap:8,alignItems:"flex-end"}}>
+                          {/* Reorder: 2nd, 1st, 3rd for podium look */}
+                          {[1, 0, 2].map(idx => {
+                            const s = top3[idx];
+                            if (!s) return <div key={idx} style={{flex:1}}/>;
+                            const rank = idx + 1;
+                            const mc   = medalColors[idx];
+                            const isFirst = idx === 0;
+                            return (
+                              <div key={s.roll} style={{
+                                flex:1,
+                                background:`color-mix(in srgb,${mc} 10%,var(--surface))`,
+                                border:`1.5px solid color-mix(in srgb,${mc} 35%,transparent)`,
+                                borderRadius:16,
+                                padding:isFirst?"18px 12px":"14px 12px",
+                                textAlign:"center",
+                                transform:isFirst?"translateY(-6px)":"none",
+                                transition:"transform 0.2s",
+                              }}>
+                                <div style={{fontSize:isFirst?28:22,marginBottom:4}}>{medals[idx]}</div>
+                                <div style={{fontWeight:800,fontSize:13,marginBottom:2,
+                                  overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.name}</div>
+                                <div style={{color:"var(--text2)",fontSize:11,marginBottom:6}}>Roll: {s.roll}</div>
+                                <div style={{
+                                  display:"inline-block",padding:"2px 10px",borderRadius:12,
+                                  background:`color-mix(in srgb,${mc} 20%,transparent)`,
+                                  color:mc,fontSize:12,fontWeight:800,
+                                }}>GPA {s.gpa}</div>
+                                <div style={{marginTop:5}}>
+                                  <Pill color={gradeColor(s.grade)}>{s.grade}</Pill>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* ── Full merit table ── */}
                     <Card style={{overflowX:"auto",padding:0,marginBottom:16}}>
                       <table>
                         <thead>
@@ -1451,4 +1809,4 @@ export default function Home() {
       )}
     </>
   );
-  }
+}
